@@ -89,6 +89,11 @@ localhost-only by default. Read-only: gerve never writes to the repository.
   history.
 - **Blame** via `git blame --porcelain`.
 
+Type set in [IBM Plex Sans](https://github.com/IBM/plex) and
+[IBM Plex Mono](https://github.com/IBM/plex), vendored under
+`web/static/fonts/` and embedded in the binary —
+[SIL Open Font License 1.1](web/static/fonts/OFL.txt).
+
 ## License
 
 [MIT](LICENSE)

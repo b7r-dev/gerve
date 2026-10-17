@@ -1,0 +1,70 @@
+{{define "title"}}{{short .Meta.Hash}} · {{.RepoName}}{{end}}
+{{define "content"}}
+<nav class="crumbs">
+  <a href="/commits/{{urlPathEscape .Ref}}">{{.RepoName}} commits</a>
+  <span class="sep">/</span>
+  <code>{{short .Meta.Hash}}</code>
+</nav>
+<div class="card commit-head">
+  <h2>{{.Meta.Subject}}</h2>
+  {{with .Meta.Body}}<pre class="commit-body">{{.}}</pre>{{end}}
+  <div class="meta-line">
+    <span class="avatar">{{initial .Meta.Author}}</span>
+    <span class="strong">{{.Meta.Author}}</span>
+    <span class="muted">committed {{timeago .Meta.Time}} · {{shortdate .Meta.Time}}</span>
+    <code class="hashcode">{{.Meta.Hash}}</code>
+    <button class="copybtn" type="button" data-copy="{{.Meta.Hash}}">copy</button>
+  </div>
+  <div class="meta-line muted">
+    {{if .Meta.Parents}}parents: {{range $i, $p := .Meta.Parents}}{{if $i}}, {{end}}<a href="/commit/{{$p}}">{{short $p}}</a>{{end}}
+    {{else}}root commit{{end}}
+    {{if .Merge}}<span class="chip chip-warn">merge &middot; diff vs first parent</span>{{end}}
+  </div>
+  <div class="meta-line">
+    <span class="strong">{{len .Files}} file{{if ne (len .Files) 1}}s{{end}} changed</span>
+    <span class="add">+{{.Adds}}</span>
+    <span class="del">&minus;{{.Dels}}</span>
+    <span class="viewsel">
+      {{if eq .View "side"}}<a href="{{.UnifiedURL}}">unified</a> <span class="muted">| side-by-side</span>
+      {{else}}<span class="muted">unified |</span> <a href="{{.SideURL}}">side-by-side</a>{{end}}
+    </span>
+  </div>
+</div>
+{{range .Files}}
+<div class="card file">
+  <div class="fhead">
+    <span class="badge st-{{.Status}}">{{.Status}}</span>
+    {{if eq .Status "R"}}<code class="path"><s>{{.Old}}</s> &rarr; <strong>{{.New}}</strong></code>
+    {{else if eq .Status "D"}}<code class="path"><s>{{.Old}}</s></code>
+    {{else if eq .Status "A"}}<code class="path"><strong>{{.New}}</strong></code>
+    {{else}}<code class="path"><strong>{{.New}}</strong></code>{{end}}
+    {{if .Binary}}<span class="muted">binary &mdash; not shown</span>{{else}}<span class="muted">+{{.Adds}} &minus;{{.Dels}}</span>{{end}}
+    {{if and .New (ne .Status "D")}}<a class="right" href="{{urlFor "blob" $.Ref .New}}">view file &rarr;</a>{{end}}
+  </div>
+  {{if not .Binary}}
+  {{if eq $.View "side"}}
+    {{range .Sb}}
+    <div class="hunk-h">{{.Header}}</div>
+    <table class="diff side">
+      {{$r := .Right}}
+      {{range $i, $l := .Left}}
+      <tr>
+        <td class="dn">{{if $l.Num}}{{$l.Num}}{{end}}</td>
+        <td class="dc d-{{kindClass $l.Kind}}">{{$l.Text}}</td>
+        <td class="dn">{{with index $r $i}}{{if .Num}}{{.Num}}{{end}}{{end}}</td>
+        <td class="dc d-{{kindClass (index $r $i).Kind}}">{{(index $r $i).Text}}</td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+  {{else}}
+    <table class="diff">
+      {{range .Rows}}<tr class="d-{{kindClass .Kind}}"><td class="dn">{{if .Old}}{{.Old}}{{end}}</td><td class="dn">{{if .New}}{{.New}}{{end}}</td><td class="dc">{{.Text}}</td></tr>{{end}}
+    </table>
+  {{end}}
+  {{end}}
+</div>
+{{else}}
+<p class="card muted">no file changes</p>
+{{end}}
+{{end}}

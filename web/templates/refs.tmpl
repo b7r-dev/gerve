@@ -1,0 +1,23 @@
+{{define "title"}}refs · {{.RepoName}}{{end}}
+{{define "content"}}
+<h2>branches</h2>
+<table class="listing">
+  {{range .Branches}}
+  <tr>
+    <td class="name"><a href="{{urlFor "tree" .Name ""}}">{{.Name}}</a></td>
+    <td class="msg">{{with .Info}}<a class="muted" href="/commit/{{.Hash}}">{{.Subject}}</a>{{end}}</td>
+    <td class="age muted">{{with .Info}}{{timeago .Time}}{{end}}</td>
+  </tr>
+  {{else}}<tr><td class="muted empty-row">no branches</td></tr>{{end}}
+</table>
+<h2>tags</h2>
+<table class="listing">
+  {{range .Tags}}
+  <tr>
+    <td class="name"><a href="{{urlFor "tree" .Name ""}}">{{.Name}}</a></td>
+    <td class="msg">{{with .Info}}<a class="muted" href="/commit/{{.Hash}}">{{.Subject}}</a>{{end}}</td>
+    <td class="age muted">{{with .Info}}{{timeago .Time}}{{end}}</td>
+  </tr>
+  {{else}}<tr><td class="muted empty-row">no tags</td></tr>{{end}}
+</table>
+{{end}}

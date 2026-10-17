@@ -1,0 +1,44 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}gerve{{end}}</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>{{.ChromaCSS}}</style>
+<script>(function(){var t=null;try{t=localStorage.getItem("gerve-theme")}catch(e){}
+if(t!=="light"&&t!=="dark"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}
+document.documentElement.classList.add(t)})();</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23539bf5'/%3E%3Ctext x='8' y='12' font-size='10' text-anchor='middle' fill='white' font-family='monospace'%3Eg%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <a class="logo" href="/">gerve</a>
+    <span class="sep">/</span>
+    <a class="reponame" href="/">{{.RepoName}}</a>
+    {{with .Head.Branch}}<span class="chip">{{.}}</span>{{end}}
+    {{if .Head.Detached}}<span class="chip chip-warn">detached{{with short .Head.Hash}} at {{.}}{{end}}</span>{{end}}
+  </div>
+  <nav>
+    {{if .Ref}}
+    <form class="refjump" action="/refs" method="get">
+      <select id="refswitch" data-base="{{.Route}}" data-path="{{.Path}}" aria-label="switch ref">
+        <option value="{{.Ref}}" selected>{{.Ref}}</option>
+        {{range .Refs}}<option value="{{.Name}}">{{.Kind}}: {{.Name}}</option>{{end}}
+      </select>
+      <noscript><button type="submit">go</button></noscript>
+    </form>
+    <a href="/commits/{{urlPathEscape .Ref}}">commits</a>
+    {{end}}
+    <a href="/refs">refs</a>
+    <button id="themeBtn" type="button" title="toggle theme" aria-label="toggle theme">◐</button>
+  </nav>
+</header>
+<main>
+{{block "content" .}}{{end}}
+</main>
+<footer>gerve {{.Version}} · read-only view of {{.RepoName}}</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>{{end}}

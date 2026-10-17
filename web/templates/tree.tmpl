@@ -1,0 +1,48 @@
+{{define "title"}}{{.RepoName}}{{if .Path}} · {{.Path}}{{end}}{{end}}
+{{define "content"}}
+{{template "crumbs" .}}
+<div class="meta-line">
+  {{with .DirLast}}<span class="muted">last commit</span>
+    <a href="/commit/{{.Hash}}">{{short .Hash}}</a>
+    <span class="strong">{{.Subject}}</span>
+    <span class="muted">{{.Author}}, {{timeago .Time}}</span>{{end}}
+  {{if .Overlay}}<span class="chip chip-live" title="untracked and modified files from the working tree are shown">live worktree</span>{{end}}
+</div>
+<table class="listing">
+  {{range .Entries}}
+  <tr>
+    <td class="icon">{{if .IsDir}}&#128193;{{else}}{{if .Symlink}}&#128279;{{else}}&#128196;{{end}}{{end}}</td>
+    <td class="name">
+      {{if .IsDir}}<a href="{{urlFor "tree" $.Ref .Path}}">{{.Name}}/</a>
+      {{else if eq .Change "deleted"}}<a class="deletelink" href="{{urlFor "blob" $.Ref .Path}}">{{.Name}}</a>
+      {{else}}<a href="{{urlFor "blob" $.Ref .Path}}">{{.Name}}</a>{{end}}
+      {{if .Change}}<span class="badge b-{{.Change}}">{{.Change}}</span>{{end}}
+    </td>
+    <td class="msg">{{with .Last}}<a class="muted" href="/commit/{{.Hash}}">{{.Subject}}</a>{{end}}</td>
+    <td class="age muted">{{with .Last}}{{timeago .Time}}{{end}}</td>
+    <td class="size muted">{{if not .IsDir}}{{sizefmt .Size}}{{end}}</td>
+  </tr>
+  {{else}}
+  <tr><td class="muted empty-row">empty directory</td></tr>
+  {{end}}
+</table>
+{{if .Readme}}
+<section class="card readme">
+  <h2>{{.ReadmeName}}</h2>
+  <div class="md">{{.Readme}}</div>
+</section>
+{{end}}
+{{if .Recent}}
+<section class="card">
+  <h2>recent commits</h2>
+  {{range .Recent}}
+  <div class="rc">
+    <a href="/commit/{{.Hash}}">{{short .Hash}}</a>
+    <span>{{.Subject}}</span>
+    <span class="muted">{{.Author}}, {{timeago .Time}}</span>
+  </div>
+  {{end}}
+  <p class="morelink"><a href="{{urlFor "commits" .Ref ""}}">all commits &rarr;</a></p>
+</section>
+{{end}}
+{{end}}

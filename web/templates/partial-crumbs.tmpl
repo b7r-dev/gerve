@@ -1,0 +1,6 @@
+{{define "crumbs"}}
+<nav class="crumbs">
+  <a href="{{urlFor "tree" .Ref ""}}">{{.RepoName}}</a>
+  {{range .Crumbs}}<span class="sep">/</span>{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}<span class="strong">{{.Name}}</span>{{end}}{{end}}
+</nav>
+{{end}}

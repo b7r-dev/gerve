@@ -1,0 +1,28 @@
+{{define "title"}}{{.Path}} · {{.RepoName}}{{end}}
+{{define "content"}}
+{{template "crumbs" .}}
+{{if .Blob.FromWorktree}}<div class="banner banner-warn">untracked — this file exists only in your working tree, not in any commit</div>{{end}}
+{{if eq .Change "deleted"}}<div class="banner banner-warn">deleted in the working tree — showing the committed version</div>{{end}}
+<div class="meta-line">
+  {{with .Last}}<span class="muted">last commit</span>
+    <a href="/commit/{{.Hash}}">{{short .Hash}}</a>
+    <span class="strong">{{.Subject}}</span>
+    <span class="muted">{{.Author}}, {{timeago .Time}}</span>{{end}}
+</div>
+<div class="toolbar">
+  <span class="muted">{{sizefmt .Blob.Size}}{{if and (not .Blob.Binary) (not .Large)}} · {{.Lines}} lines{{end}}</span>
+  <a href="{{urlFor "raw" .Ref .Path}}">raw</a>
+  <a href="{{urlFor "raw" .Ref .Path}}?download=1">download</a>
+  {{if .CanHistory}}<a href="{{urlFor "history" .Ref .Path}}">history</a>{{end}}
+  {{if .CanBlame}}<a href="{{urlFor "blame" .Ref .Path}}">blame</a>{{end}}
+</div>
+{{if .Blob.Image}}
+<p class="imgview"><img src="{{urlFor "raw" .Ref .Path}}" alt="{{.Blob.Path}}"></p>
+{{else if .Empty}}
+<div class="banner muted">empty file</div>
+{{else if .Large}}
+<div class="banner">file is {{sizefmt .Blob.Size}} — too large to render inline. <a href="{{urlFor "raw" .Ref .Path}}">open raw</a></div>
+{{else if not .Blob.Binary}}
+<div class="codewrap">{{.Code}}</div>
+{{end}}
+{{end}}

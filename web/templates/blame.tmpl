@@ -1,0 +1,23 @@
+{{define "title"}}blame · {{.Path}} · {{.RepoName}}{{end}}
+{{define "content"}}
+{{template "crumbs" .}}
+<div class="toolbar">
+  <a href="{{urlFor "blob" .Ref .Path}}">&larr; file view</a>
+  <a href="{{urlFor "history" .Ref .Path}}">history</a>
+</div>
+<div class="blame">
+  {{range .Groups}}
+  <div class="bgroup">
+    <div class="bhead">
+      <a href="/commit/{{.Commit.Hash}}">{{short .Commit.Hash}}</a>
+      <span class="strong">{{.Commit.Subject}}</span>
+      <span class="muted">{{.Commit.Author}}, {{timeago .Commit.Time}}</span>
+      {{if .Boundary}}<span class="badge">boundary</span>{{end}}
+    </div>
+    <div class="plaincode"><table>
+      {{range .Lines}}<tr><td class="ln">{{.Num}}</td><td class="lt">{{.Text}}</td></tr>{{end}}
+    </table></div>
+  </div>
+  {{end}}
+</div>
+{{end}}

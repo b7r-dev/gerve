@@ -1,0 +1,26 @@
+{{define "title"}}commits · {{.RepoName}}{{end}}
+{{define "content"}}
+{{template "crumbs" .}}
+{{if .Path}}
+<div class="meta-line">
+  history of <code>{{.Path}}</code>{{if .Follow}} <span class="chip">following renames</span>{{end}}
+  — <a href="{{urlFor "tree" .Ref .Path}}">back to tree</a>
+</div>
+{{end}}
+<table class="listing commits">
+  {{range .Log.Commits}}
+  <tr>
+    <td class="hash"><a href="/commit/{{.Hash}}">{{short .Hash}}</a></td>
+    <td class="msg strong">{{.Subject}}</td>
+    <td class="author muted">{{.Author}}</td>
+    <td class="age muted">{{timeago .Time}}</td>
+  </tr>
+  {{else}}
+  <tr><td class="muted empty-row">no commits{{if .Path}} touching {{.Path}}{{end}}</td></tr>
+  {{end}}
+</table>
+<p class="pager">
+  {{if .PrevURL}}<a href="{{.PrevURL}}">&larr; newer</a>{{end}}
+  {{if .NextURL}}<a href="{{.NextURL}}">older &rarr;</a>{{end}}
+</p>
+{{end}}

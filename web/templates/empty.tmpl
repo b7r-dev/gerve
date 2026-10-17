@@ -1,0 +1,9 @@
+{{define "title"}}{{.RepoName}}{{end}}
+{{define "content"}}
+<div class="card errpage">
+  <h2>{{.RepoName}} has no commits yet</h2>
+  <p>This repository exists but has no history to browse yet. Make a commit and refresh:</p>
+  <pre class="plaincode">git add -A
+git commit -m "initial commit"</pre>
+</div>
+{{end}}

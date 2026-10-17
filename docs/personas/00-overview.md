@@ -42,10 +42,11 @@ implementation.
    read-only `git diff/show` invocation.
 2. **Instant start, zero config.** One command, one optional path. No init, no
    dotfiles, no first-run wizard.
-3. **Committed state is the truth (v1).** The UI renders git objects, not the
-   worktree — this is what makes bare repos, old refs, and read-only mounts
-   work for free. The filesystem's role in v1: repo discovery and future
-   worktree features. Untracked/dirty overlay is a v2 question (OQ2).
+3. **Git objects + live worktree, merged.** Content is served from git
+   objects; when browsing HEAD, the worktree is overlaid — untracked files
+   appear, modified and deleted files are badged. Bare repos and read-only
+   snapshots automatically degrade to committed-only. Status comes from the
+   CLI (`--porcelain -z`), is cached, and refreshes on a short TTL.
 4. **Degrade gracefully, never panic.** Every degenerate repo state (no
    commits, dangling HEAD, shallow clone, unknown encoding) gets a designed
    page, not a stack trace.
@@ -56,24 +57,34 @@ implementation.
 7. **Rename-aware diffs are core.** Three of five personas independently need
    them; the git CLI is used precisely for this.
 
-## Open questions for review
+## Decisions — settled in review
 
-| # | Question | Recommendation |
-|---|----------|----------------|
-| OQ1 | Port already in use — fail or auto-increment? | **Fail with a hint** ("port 8080 busy — try -p 8081"); `-p 0` gives an OS-assigned port for scripted use. |
-| OQ2 | Uncommitted/untracked files in the UI? | **v1 shows committed state only**; a worktree overlay is v2. Keeps bare/read-only support free. |
-| OQ3 | Non-git directory — hard error or file-browser fallback? | **Exit 1 with a one-line hint.** No fallback browser in v1. |
-| OQ4 | Refs with slashes (`ramon/webhooks`, `feature/old-ui`) in URLs | **Greedy longest-ref match** when parsing `/tree/{ref}/{path...}`; document the disambiguation. |
+| # | Question | Decision |
+|---|----------|----------|
+| OQ1 | Port already in use — fail or auto-increment? | **Fail with a hint** ("port busy — try -p N+1"); `-p 0` gives an OS-assigned port for scripted use. |
+| OQ2 | Uncommitted/untracked files in the UI? | **Full worktree overlay in v1** (chosen over committed-only and the middle dirty-badge option). Untracked files render from the filesystem; bare/read-only repos degrade to committed-only automatically. |
+| OQ3 | Non-git directory | **Hard error**, exit 1 with a one-line hint. |
+| OQ4 | Refs with slashes in URLs | **Greedy longest-ref match** against known refs when parsing `/tree/{ref}/{path...}`. |
 | OQ5 | Default bind | **127.0.0.1**, `-a` to widen, never silent. |
-| OQ6 | Multi-repo index mode (serve a folder of repos) | **Defer to v2** — strongest roadmap signal (persona 04) but keeps v1 pure. |
+| OQ6 | Multi-repo index mode | **v2.** |
 | OQ7 | Auto-open browser | **`--open` opt-in**; always print the URL. |
-| OQ8 | Directory-scoped commit log ("commits touching this dir") | **v2** — highest-demand future feature (personas 03, 05). |
+| OQ8 | Directory-scoped commit log | **v1** (upgraded from the v2 recommendation during review). |
+
+Additional decisions from review:
+
+- **Primary persona: Maya** (private solo repos) — privacy and polish win
+  trade-offs.
+- **Blame view: v1** (via `git blame --porcelain`).
+- **Per-file history: v1** (`git log --follow`).
+- **Theme: system preference with a manual toggle** (localStorage-persisted).
+- **Diff layout: unified and side-by-side, toggleable** (server-side `?view=`
+  param, works without JavaScript).
+- **License: MIT.**
 
 ## Explicitly deferred to v2+
 
-Blame view, per-file history, directory-scoped log, multi-repo mode, LAN
-sharing guide, uncommitted-worktree overlay, commit/file search, Atom feed,
-snapshot export, Wails desktop wrapper.
+Multi-repo mode, LAN sharing guide, commit/file search, Atom feed, snapshot
+export, uncommitted-change indicators on non-HEAD refs, Wails desktop wrapper.
 
 ## Assumptions to verify during implementation
 

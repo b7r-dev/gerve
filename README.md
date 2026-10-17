@@ -28,7 +28,8 @@ go build ./cmd/gerve && ./gerve -p 8080 .   # from a checkout
 gerve [flags] [path]
 
   -p <port>     listen port        (default 8080; 0 = OS-assigned)
-  -a <addr>     bind address       (default 127.0.0.1)
+  -a <addr>     bind address       (default 127.0.0.1; 0.0.0.0 = all
+                                   interfaces — LAN URLs printed on start)
   -b <ref>      ref to open at     (default HEAD)
   --open        open the browser on start
   -V            print version

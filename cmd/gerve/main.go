@@ -97,10 +97,16 @@ func main() {
 		fatal(err)
 	}
 
-	url := displayURL(ln, opts.addr)
-	fmt.Printf("gerve %s · %s%s at %s\n", version, repo.Name(), bareNote(repo), url)
+	local := displayURL(ln, opts.addr)
+	fmt.Printf("gerve %s · %s%s at %s\n", version, repo.Name(), bareNote(repo), local)
+	if isAnyBind(opts.addr) {
+		for _, u := range lanURLs(ln) {
+			fmt.Printf("%*s also on %s\n", len("gerve "+version+" · "), "", u)
+		}
+		fmt.Println("note: reachable from your network — anyone who can reach this machine can read this repository")
+	}
 	if opts.open {
-		go openBrowser(url)
+		go openBrowser(local)
 	}
 
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
@@ -167,13 +173,65 @@ func parseArgs(args []string) (cliOpts, error) {
 
 func displayURL(ln net.Listener, bind string) string {
 	host, port, _ := net.SplitHostPort(ln.Addr().String())
-	if bind == "0.0.0.0" || bind == "::" || bind == "" {
-		return fmt.Sprintf("http://127.0.0.1:%s (bound to all interfaces)", port)
+	if isAnyBind(bind) {
+		return "http://127.0.0.1:" + port
 	}
 	if host == "::" || host == "[::]" {
 		host = "127.0.0.1"
 	}
 	return "http://" + net.JoinHostPort(host, port)
+}
+
+// isAnyBind reports whether the bind address reaches beyond loopback.
+func isAnyBind(bind string) bool {
+	return bind == "" || bind == "0.0.0.0" || bind == "::" || bind == "[::]"
+}
+
+// lanURLs returns http URLs for every non-loopback, non-link-local address
+// of this machine, so the user knows what to type on another device.
+func lanURLs(ln net.Listener) []string {
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		return nil
+	}
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var urls []string
+	add := func(ip net.IP) {
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return
+		}
+		host := ip.String()
+		if ip4 := ip.To4(); ip4 != nil {
+			host = ip4.String()
+		}
+		u := "http://" + net.JoinHostPort(host, port)
+		if !seen[u] {
+			seen[u] = true
+			urls = append(urls, u)
+		}
+	}
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := ifc.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			switch v := a.(type) {
+			case *net.IPNet:
+				add(v.IP)
+			case *net.IPAddr:
+				add(v.IP)
+			}
+		}
+	}
+	return urls
 }
 
 func bareNote(r *git.Repo) string {
@@ -184,10 +242,6 @@ func bareNote(r *git.Repo) string {
 }
 
 func openBrowser(u string) {
-	// strip the "(bound to ...)" annotation if present
-	if i := strings.Index(u, " ("); i >= 0 {
-		u = u[:i]
-	}
 	var cmd *exec.Cmd
 	if runtime.GOOS == "darwin" {
 		cmd = exec.Command("open", u)

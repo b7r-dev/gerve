@@ -34,11 +34,11 @@ your `PATH`:
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
-Once this module is served at its module path (`b7r.dev/gerve`), the same
-install works from anywhere, no checkout needed:
+Or install from anywhere — no checkout needed — now that the module lives
+on GitHub:
 
 ```sh
-go install b7r.dev/gerve/cmd/gerve@latest
+go install github.com/b7r-dev/gerve/cmd/gerve@latest
 ```
 
 Or build a standalone binary by hand — a single static executable with every

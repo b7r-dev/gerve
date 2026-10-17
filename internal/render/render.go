@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
-	"b7r.dev/gerve/web"
+	"github.com/b7r-dev/gerve/web"
 )
 
 const (

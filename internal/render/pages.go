@@ -3,7 +3,7 @@ package render
 import (
 	"html/template"
 
-	"b7r.dev/gerve/internal/git"
+	"github.com/b7r-dev/gerve/internal/git"
 )
 
 // Base is embedded by every page's data struct; layout.tmpl relies on it.

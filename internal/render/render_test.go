@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"b7r.dev/gerve/internal/git"
+	"github.com/b7r-dev/gerve/internal/git"
 )
 
 func fixtureBase() Base {

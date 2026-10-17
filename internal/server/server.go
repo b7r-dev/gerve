@@ -10,9 +10,9 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"b7r.dev/gerve/internal/git"
-	"b7r.dev/gerve/internal/render"
-	"b7r.dev/gerve/web"
+	"github.com/b7r-dev/gerve/internal/git"
+	"github.com/b7r-dev/gerve/internal/render"
+	"github.com/b7r-dev/gerve/web"
 )
 
 // Options configures a Server.

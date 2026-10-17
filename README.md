@@ -13,9 +13,14 @@ internal monorepos, old archives, and throwaway experiments.
 
 ## Status
 
-Implementation in progress. Requirements were explored through five personas
-and narratives in [`docs/personas/`](docs/personas/) — start with
+**v1 working.** Requirements were explored through five personas and
+narratives in [`docs/personas/`](docs/personas/) — start with
 [the overview](docs/personas/00-overview.md) for the settled decisions.
+
+```
+go install b7r.dev/gerve/cmd/gerve@latest   # once published
+go build ./cmd/gerve && ./gerve -p 8080 .   # from a checkout
+```
 
 ## Planned usage
 

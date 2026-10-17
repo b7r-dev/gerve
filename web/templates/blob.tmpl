@@ -23,6 +23,15 @@
 {{else if .Large}}
 <div class="banner">file is {{sizefmt .Blob.Size}} — too large to render inline. <a href="{{urlFor "raw" .Ref .Path}}">open raw</a></div>
 {{else if not .Blob.Binary}}
-<div class="codewrap">{{.Code}}</div>
+  {{if .IsMD}}
+  <div class="toolbar">
+    <span class="muted">markdown</span>
+    {{if .SourceURL}}<a href="{{.SourceURL}}">view source</a>{{end}}
+    {{if .RenderURL}}<a href="{{.RenderURL}}">rendered view</a>{{end}}
+  </div>
+  {{if .RenderURL}}<div class="codewrap">{{.Code}}</div>{{else}}<div class="md card">{{.Code}}</div>{{end}}
+  {{else}}
+  <div class="codewrap">{{.Code}}</div>
+  {{end}}
 {{end}}
 {{end}}

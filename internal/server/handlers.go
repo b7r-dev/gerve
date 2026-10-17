@@ -3,9 +3,11 @@ package server
 import (
 	"bytes"
 	"errors"
+	"html/template"
 	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -72,7 +74,7 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 			if bl, err := s.repo.Blob(ctx, hash, entries[i].Path, overlay); err == nil && len(bl.Content) <= 512<<10 {
 				switch {
 				case strings.HasSuffix(n, ".md") || strings.HasSuffix(n, ".markdown"):
-					page.Readme = s.rnd.Markdown(bl.Content)
+					page.Readme = s.rnd.Markdown(bl.Content, s.linkRewriter(ref, hash, p))
 				default:
 					page.Readme = s.rnd.PlainText(bl.Content)
 				}
@@ -129,10 +131,26 @@ func (s *Server) blob(w http.ResponseWriter, r *http.Request) {
 		if len(b.Content) > 0 && b.Content[len(b.Content)-1] != '\n' {
 			page.Lines++
 		}
-		if code, ok := s.rnd.Highlight(b.Content, filepath.Base(p)); ok {
-			page.Code = code
+		source := func() string {
+			if code, ok := s.rnd.Highlight(b.Content, filepath.Base(p)); ok {
+				return string(code)
+			}
+			return string(s.rnd.PlainCode(b.Content))
+		}
+		lower := strings.ToLower(p)
+		if strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".markdown") {
+			page.IsMD = true
+			if r.URL.Query().Get("source") == "1" {
+				// source view: highlighted markdown
+				page.RenderURL = render.URLFor("blob", ref, p)
+				page.Code = template.HTML(source())
+			} else {
+				// rendered view (default), links rewritten with this ref pinned
+				page.SourceURL = render.URLFor("blob", ref, p) + "?source=1"
+				page.Code = s.rnd.Markdown(b.Content, s.linkRewriter(ref, hash, parentDir(p)))
+			}
 		} else {
-			page.Code = s.rnd.PlainCode(b.Content)
+			page.Code = template.HTML(source())
 		}
 	}
 
@@ -334,6 +352,85 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 // helpers ---------------------------------------------------------------------
+
+// linkRewriter returns a markdown link rewriter that resolves repo-relative
+// targets against the ref being browsed and pins that ref into the URL.
+// Targets missing at that ref fall back to the default ref; targets missing
+// everywhere keep the pin and 404 honestly.
+func (s *Server) linkRewriter(refName, refHash, baseDir string) func(string) string {
+	defHash, _ := s.repo.Resolve(s.def)
+	return func(href string) string {
+		clean, ok := repoRelative(baseDir, href)
+		if !ok {
+			return ""
+		}
+		kind := s.repo.KindAt(refHash, clean)
+		urlRef := refName
+		if kind == "" && defHash != "" && defHash != refHash {
+			if k := s.repo.KindAt(defHash, clean); k != "" {
+				kind, urlRef = k, s.def
+			}
+		}
+		switch kind {
+		case "dir":
+			return render.URLFor("tree", urlRef, clean) + "/"
+		case "file":
+			if isRasterExt(clean) {
+				return render.URLFor("raw", urlRef, clean)
+			}
+			return render.URLFor("blob", urlRef, clean)
+		default:
+			return render.URLFor("blob", refName, clean)
+		}
+	}
+}
+
+// repoRelative resolves a markdown link against the directory of the file
+// containing it. A leading "/" is repo-root-relative; escapes and .git are
+// rejected. Query strings are stripped (fragments are handled upstream).
+func repoRelative(baseDir, href string) (string, bool) {
+	h := href
+	if i := strings.IndexByte(h, '?'); i >= 0 {
+		h = h[:i]
+	}
+	if h == "" {
+		return "", false
+	}
+	if unescaped, err := url.PathUnescape(h); err == nil {
+		h = unescaped
+	}
+	join := strings.TrimSuffix(baseDir, "/")
+	if strings.HasPrefix(h, "/") {
+		h = strings.TrimPrefix(h, "/")
+		join = ""
+	}
+	clean := path.Clean(join + "/" + h)
+	clean = strings.TrimPrefix(clean, "/")
+	if clean == "." || clean == "" {
+		return "", false
+	}
+	for _, seg := range strings.Split(clean, "/") {
+		if seg == ".." || seg == ".git" {
+			return "", false
+		}
+	}
+	return clean, true
+}
+
+func isRasterExt(p string) bool {
+	switch strings.ToLower(filepath.Ext(p)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".avif":
+		return true
+	}
+	return false
+}
+
+func parentDir(p string) string {
+	if i := strings.LastIndexByte(p, '/'); i >= 0 {
+		return p[:i]
+	}
+	return ""
+}
 
 func validQueryParamPath(p string) (string, bool) {
 	if p == "" {

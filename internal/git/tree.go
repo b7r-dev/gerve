@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 // Entry is one row of a directory listing: a git tree entry, possibly
@@ -254,6 +255,51 @@ func joinPath(dir, name string) string {
 		return name
 	}
 	return dir + "/" + name
+}
+
+// KindAt reports what lives at path on the given commit: "dir", "file",
+// or "" when absent.
+func (r *Repo) KindAt(refHash, p string) string {
+	if p == "" {
+		return "dir"
+	}
+	if err := validRepoPath(p); err != nil {
+		return ""
+	}
+	commit, err := r.r.CommitObject(plumbing.NewHash(refHash))
+	if err != nil {
+		return ""
+	}
+	t, err := commit.Tree()
+	if err != nil {
+		return ""
+	}
+	segs := strings.Split(p, "/")
+	for i, seg := range segs {
+		var entry *object.TreeEntry
+		for j := range t.Entries {
+			if t.Entries[j].Name == seg {
+				entry = &t.Entries[j]
+				break
+			}
+		}
+		if entry == nil {
+			return ""
+		}
+		if i == len(segs)-1 {
+			if entry.Mode == filemode.Dir {
+				return "dir"
+			}
+			return "file"
+		}
+		if entry.Mode != filemode.Dir {
+			return ""
+		}
+		if t, err = r.r.TreeObject(entry.Hash); err != nil {
+			return ""
+		}
+	}
+	return ""
 }
 
 // --- per-entry last commit --------------------------------------------------

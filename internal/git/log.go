@@ -66,9 +66,5 @@ func parseLogRecords(out []byte) []CommitInfo {
 
 // IsFileAt reports whether path is a blob (not a tree) at the given commit.
 func (r *Repo) IsFileAt(refHash, path string) bool {
-	if path == "" {
-		return false
-	}
-	b, err := r.gitBlob(refHash, path)
-	return err == nil && b != nil
+	return r.KindAt(refHash, path) == "file"
 }

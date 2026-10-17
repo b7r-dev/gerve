@@ -18,10 +18,11 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
-	gmhtml "github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/text"
 
 	"b7r.dev/gerve/web"
 )
@@ -75,7 +76,6 @@ func New() (*Renderer, error) {
 			),
 		),
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
-		goldmark.WithRendererOptions(gmhtml.WithHardWraps()),
 	)
 
 	return &Renderer{pages: pages, md: md, chroma: chromaCSS()}, nil
@@ -92,12 +92,57 @@ func (rd *Renderer) Page(w io.Writer, name string, data any) {
 func (rd *Renderer) ChromaCSS() template.CSS { return rd.chroma }
 
 // Markdown renders markdown to safe HTML (raw HTML in source is escaped).
-func (rd *Renderer) Markdown(src []byte) template.HTML {
+// Soft line breaks collapse — single newlines in the source render as
+// spaces, matching GitHub's rendering of .md files.
+//
+// rewrite, when non-nil, receives each relative link/image destination and
+// returns a replacement URL ("" keeps the original); gerve uses it to point
+// repo-relative links at its own routes with the current ref pinned.
+func (rd *Renderer) Markdown(src []byte, rewrite func(string) string) template.HTML {
+	doc := rd.md.Parser().Parse(text.NewReader(src))
+	if rewrite != nil {
+		ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+			if !entering {
+				return ast.WalkContinue, nil
+			}
+			switch n := n.(type) {
+			case *ast.Link:
+				n.Destination = rewriteDest(n.Destination, rewrite)
+			case *ast.Image:
+				n.Destination = rewriteDest(n.Destination, rewrite)
+			}
+			return ast.WalkContinue, nil
+		})
+	}
 	var b bytes.Buffer
-	if err := rd.md.Convert(src, &b); err != nil {
+	if err := rd.md.Renderer().Render(&b, src, doc); err != nil {
 		return template.HTML("<pre class=\"readme-plain\">" + template.HTMLEscapeString(string(src)) + "</pre>")
 	}
 	return template.HTML(b.String())
+}
+
+// rewriteDest maps one markdown destination through rewrite, leaving
+// absolute URLs, schemes, and pure anchors alone; fragments survive.
+func rewriteDest(dest []byte, rewrite func(string) string) []byte {
+	href := string(dest)
+	if href == "" || strings.HasPrefix(href, "#") ||
+		strings.Contains(href, "://") ||
+		strings.HasPrefix(href, "mailto:") || strings.HasPrefix(href, "tel:") {
+		return dest
+	}
+	base, frag := splitFragment(href)
+	mapped := rewrite(base)
+	if mapped == "" || mapped == base {
+		return dest
+	}
+	return []byte(mapped + frag)
+}
+
+func splitFragment(href string) (base, frag string) {
+	if i := strings.IndexByte(href, '#'); i >= 0 {
+		return href[:i], href[i:]
+	}
+	return href, ""
 }
 
 // PlainText wraps preformatted text as safe HTML.

@@ -65,6 +65,57 @@ func TestPagesRenderNonEmpty(t *testing.T) {
 	}
 }
 
+func TestMarkdownRewriteLinks(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := []byte("[dir](docs/personas)\n\n[dir2](docs/personas/)\n\n![img](assets/logo.png)\n\n[ext](https://example.com/x)\n\n[anchor](#sec)\n\n[md](docs/a.md#intro)\n\n[missing](nope/missing.txt)")
+	rewrite := func(href string) string {
+		switch href {
+		case "docs/personas":
+			return "/tree/HEAD/docs/personas/"
+		case "assets/logo.png":
+			return "/raw/HEAD/assets/logo.png"
+		case "docs/a.md":
+			return "/blob/HEAD/docs/a.md"
+		}
+		return ""
+	}
+	out := string(rd.Markdown(src, rewrite))
+	checks := []string{
+		`href="/tree/HEAD/docs/personas/"`,
+		`src="/raw/HEAD/assets/logo.png"`,
+		`href="https://example.com/x"`, // external untouched
+		`href="#sec"`,                  // anchor untouched
+		`href="/blob/HEAD/docs/a.md#intro"`, // fragment preserved
+		`href="nope/missing.txt"`,           // "" from rewrite keeps original
+	}
+	for _, c := range checks {
+		if !strings.Contains(out, c) {
+			t.Errorf("markdown output missing %q\nout: %s", c, out)
+		}
+	}
+	if strings.Contains(out, `href="docs/personas"`) {
+		t.Errorf("unrewritten relative link leaked:\n%s", out)
+	}
+}
+
+func TestMarkdownSoftWrapsCollapse(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := []byte("line one\nline two\nline three\n\nnew paragraph\n")
+	out := string(rd.Markdown(src, nil))
+	if strings.Contains(out, "<br") {
+		t.Errorf("soft newline rendered as hard break (GitHub collapses these):\n%s", out)
+	}
+	if strings.Count(out, "<p>") != 2 {
+		t.Errorf("expected 2 paragraphs, got: %s", out)
+	}
+}
+
 func TestTimeagoAndSizes(t *testing.T) {
 	if got := timeago(time.Now().Add(-2 * time.Hour)); got != "2 hours ago" {
 		t.Errorf("timeago hours: %q", got)

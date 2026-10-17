@@ -42,7 +42,10 @@ type BlobPage struct {
 	Lines      int
 	Large      bool
 	Empty      bool
+	IsMD       bool
 	Code       template.HTML
+	SourceURL  string // set when showing rendered markdown: link to source
+	RenderURL  string // set when showing source: link to rendered view
 	CanBlame   bool
 	CanHistory bool
 }

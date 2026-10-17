@@ -1,6 +1,34 @@
 package server
 
-import "testing"
+import (
+	"bytes"
+	"os/exec"
+	"strings"
+	"testing"
+)
+
+func gitHelper(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	var out, errb bytes.Buffer
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git %v: %s: %s", args, strings.TrimSpace(errb.String()), err)
+	}
+}
+
+func gitHelperOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	var out, errb bytes.Buffer
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git %v: %s: %s", args, strings.TrimSpace(errb.String()), err)
+	}
+	return strings.TrimSpace(out.String())
+}
 
 func TestRepoRelative(t *testing.T) {
 	cases := []struct {

@@ -1,6 +1,11 @@
 package git
 
 import (
+	"bytes"
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -147,5 +152,115 @@ func TestParseCommitRecord(t *testing.T) {
 	}
 	if info.Time.Unix() != 1700000000 || info.Time.Equal(time.Time{}) {
 		t.Errorf("time: %v", info.Time)
+	}
+}
+
+// --- CommitDiff direction (regression: merge diffs were inverted) -----------
+
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git %v: %s: %s", args, strings.TrimSpace(errb.String()), err)
+	}
+	return strings.TrimSpace(out.String())
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// mergeFixture builds a repo whose history is:
+//
+//	root (base.txt) ── main: mainline.txt ── merge (M, 2 parents)
+//	        └──────── feat: feature.txt ──────┘
+func mergeFixture(t *testing.T) (r *Repo, rootSHA, mergeSHA string) {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) { gitOut(t, dir, args...) }
+
+	run("init", "-q", "-b", "main")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+
+	writeFile(t, dir, "base.txt", "base\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "root: base")
+	rootSHA = gitOut(t, dir, "rev-parse", "HEAD")
+
+	run("checkout", "-q", "-b", "feat")
+	writeFile(t, dir, "feature.txt", "feature one\nfeature two\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "feat: add feature.txt")
+
+	run("checkout", "-q", "main")
+	writeFile(t, dir, "mainline.txt", "mainline\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "main: mainline")
+	run("merge", "-q", "--no-ff", "-m", "merge: bring in feature", "feat")
+	mergeSHA = gitOut(t, dir, "rev-parse", "HEAD")
+
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, rootSHA, mergeSHA
+}
+
+func TestCommitDiffMergeRunsParentToMerge(t *testing.T) {
+	r, _, mergeSHA := mergeFixture(t)
+	meta, err := r.Commit(mergeSHA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(meta.Parents) != 2 {
+		t.Fatalf("expected merge with 2 parents, got %d", len(meta.Parents))
+	}
+	diff, err := r.CommitDiff(context.Background(), meta.Hash, meta.Parents[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var feature *FileDiff
+	for i := range diff.Files {
+		if diff.Files[i].New == "feature.txt" {
+			feature = &diff.Files[i]
+		}
+	}
+	if feature == nil {
+		t.Fatalf("feature.txt missing from merge diff: %+v", diff.Files)
+	}
+	// The merge INTRODUCED feature.txt — it must read as an addition.
+	if feature.Status != "A" || feature.Adds != 2 || feature.Dels != 0 {
+		t.Errorf("merge diff inverted: status=%s adds=%d dels=%d", feature.Status, feature.Adds, feature.Dels)
+	}
+	if !strings.Contains(feature.Patch, "+feature one") || strings.Contains(feature.Patch, "-feature one") {
+		t.Errorf("patch lines inverted:\n%s", feature.Patch)
+	}
+}
+
+func TestCommitDiffRootCommit(t *testing.T) {
+	r, rootSHA, _ := mergeFixture(t)
+	diff, err := r.CommitDiff(context.Background(), rootSHA, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base *FileDiff
+	for i := range diff.Files {
+		if diff.Files[i].New == "base.txt" {
+			base = &diff.Files[i]
+		}
+	}
+	if base == nil {
+		t.Fatalf("base.txt missing from root diff: %+v", diff.Files)
+	}
+	if base.Status != "A" || base.Adds != 1 || base.Dels != 0 {
+		t.Errorf("root diff wrong: status=%s adds=%d dels=%d", base.Status, base.Adds, base.Dels)
 	}
 }

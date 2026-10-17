@@ -291,7 +291,10 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 		view = "unified"
 	}
 
-	page := render.CommitPage{Base: s.newBase(s.def, "", "tree"), Meta: meta, View: view, Merge: merge}
+	// Pin the page to the commit itself: the "view file" links, breadcrumbs,
+	// and ref switcher all operate on the reviewed commit, not the default
+	// ref — otherwise links silently show a different file version.
+	page := render.CommitPage{Base: s.newBase(meta.Hash, "", "tree"), Meta: meta, View: view, Merge: merge}
 	page.Files = make([]render.FileView, 0, len(diff.Files))
 	for _, f := range diff.Files {
 		fv := render.FileView{FileDiff: f}

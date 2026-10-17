@@ -26,13 +26,14 @@ type CommitDiff struct {
 
 // CommitDiff returns the patch of a commit. parent is empty for normal
 // commits (diff against the sole parent); for merges pass the parent to
-// diff against, usually the first.
+// diff against, usually the first. The patch always reads parent→commit:
+// git diff-tree A B diffs A into B, so the parent goes first.
 func (r *Repo) CommitDiff(ctx context.Context, hash, parent string) (*CommitDiff, error) {
 	args := []string{"diff-tree", "-r", "--no-color", "-p", "-M", "--no-ext-diff"}
 	if parent == "" {
 		args = append(args, "--root", hash)
 	} else {
-		args = append(args, hash, parent)
+		args = append(args, parent, hash)
 	}
 	out, err := r.git(ctx, args...)
 	if err != nil {

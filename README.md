@@ -17,9 +17,41 @@ internal monorepos, old archives, and throwaway experiments.
 narratives in [`docs/personas/`](docs/personas/) — start with
 [the overview](docs/personas/00-overview.md) for the settled decisions.
 
+## Installation
+
+Needs Go 1.26 or newer.
+
+From a checkout of this repository:
+
+```sh
+go install ./cmd/gerve
 ```
-go install b7r.dev/gerve/cmd/gerve@latest   # once published
-go build ./cmd/gerve && ./gerve -p 8080 .   # from a checkout
+
+The binary lands in `$(go env GOPATH)/bin` — make sure that directory is on
+your `PATH`:
+
+```sh
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+Once this module is served at its module path (`b7r.dev/gerve`), the same
+install works from anywhere, no checkout needed:
+
+```sh
+go install b7r.dev/gerve/cmd/gerve@latest
+```
+
+Or build a standalone binary by hand — a single static executable with every
+template, stylesheet, and script embedded, no runtime dependencies:
+
+```sh
+CGO_ENABLED=0 go build -o /usr/local/bin/gerve ./cmd/gerve
+```
+
+Then point it at any repository:
+
+```sh
+gerve -p 8080 .
 ```
 
 ## Planned usage

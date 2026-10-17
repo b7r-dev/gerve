@@ -3,17 +3,13 @@
 (function () {
   "use strict";
 
-  // Theme toggle: cycle dark/light, persist the choice. The initial class
-  // was already set inline in <head> before first paint.
+  // Theme toggle: flip the light class, persist the choice. The inline
+  // script in <head> already applied the initial state before first paint.
   var btn = document.getElementById("themeBtn");
   if (btn) {
     btn.addEventListener("click", function () {
-      var root = document.documentElement;
-      var cur = root.classList.contains("light") ? "light" : "dark";
-      var next = cur === "light" ? "dark" : "light";
-      root.classList.remove(cur);
-      root.classList.add(next);
-      try { localStorage.setItem("gerve-theme", next); } catch (e) {}
+      var light = document.documentElement.classList.toggle("light");
+      try { localStorage.setItem("gerve-theme", light ? "light" : "dark"); } catch (e) {}
     });
   }
 

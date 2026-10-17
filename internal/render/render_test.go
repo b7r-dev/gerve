@@ -12,7 +12,6 @@ import (
 func fixtureBase() Base {
 	return Base{
 		Version:   "test",
-		ChromaCSS: "",
 		RepoName:  "dotgrid",
 		Ref:       "HEAD",
 		Head:      git.HeadInfo{Branch: "main"},

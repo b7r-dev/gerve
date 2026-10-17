@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/fs"
 	"log"
 	"net/url"
 	"strings"
@@ -31,11 +30,10 @@ const (
 	maxHighlight = 512 << 10 // bytes highlighted; larger falls back to plain
 )
 
-// Renderer owns parsed templates and generated highlighting CSS.
+// Renderer owns parsed templates and the markdown pipeline.
 type Renderer struct {
 	pages map[string]*template.Template
 	md    goldmark.Markdown
-	chroma template.CSS
 }
 
 // New parses templates and prepares markdown + chroma CSS.
@@ -78,7 +76,7 @@ func New() (*Renderer, error) {
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 	)
 
-	return &Renderer{pages: pages, md: md, chroma: chromaCSS()}, nil
+	return &Renderer{pages: pages, md: md}, nil
 }
 
 // Page renders a named page with the shared layout.
@@ -87,9 +85,6 @@ func (rd *Renderer) Page(w io.Writer, name string, data any) {
 		log.Printf("render %s: %v", name, err)
 	}
 }
-
-// ChromaCSS returns the two-theme scoped highlighting stylesheet.
-func (rd *Renderer) ChromaCSS() template.CSS { return rd.chroma }
 
 // Markdown renders markdown to safe HTML (raw HTML in source is escaped).
 // Soft line breaks collapse — single newlines in the source render as
@@ -306,60 +301,3 @@ func humanBytes(n int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
-
-// --- chroma CSS generation --------------------------------------------------
-
-// chromaCSS generates class-based highlighting styles for both themes and
-// scopes them under html.light / html.dark so the theme toggle restyles
-// code without reloading.
-func chromaCSS() template.CSS {
-	var b strings.Builder
-	for _, th := range []struct{ cls, style string }{
-		{"light", "github"},
-		{"dark", "github-dark"},
-	} {
-		st := styles.Get(th.style)
-		if st == nil {
-			continue
-		}
-		var cb bytes.Buffer
-		f := chromahtml.New()
-		if err := f.WriteCSS(&cb, st); err != nil {
-			continue
-		}
-		b.WriteString(scopeCSS(cb.String(), "html."+th.cls))
-	}
-	return template.CSS(b.String())
-}
-
-// scopeCSS prefixes every selector in a stylesheet with scope.
-func scopeCSS(css, scope string) string {
-	var b strings.Builder
-	for _, rule := range strings.Split(css, "}") {
-		rule = strings.TrimSpace(rule)
-		if rule == "" {
-			continue
-		}
-		idx := strings.Index(rule, "{")
-		if idx < 0 {
-			continue
-		}
-		sel, body := rule[:idx], rule[idx+1:]
-		var sels []string
-		for _, s := range strings.Split(sel, ",") {
-			s = strings.TrimSpace(s)
-			if s == "" {
-				continue
-			}
-			sels = append(sels, scope+" "+s)
-		}
-		b.WriteString(strings.Join(sels, ", "))
-		b.WriteString(" {")
-		b.WriteString(body)
-		b.WriteString("}\n")
-	}
-	return b.String()
-}
-
-// ensure fs import used (ParseFS takes fs.FS via embed.FS)
-var _ fs.FS = web.Templates()

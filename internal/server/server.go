@@ -127,9 +127,8 @@ func (s *Server) newBase(ref, path, route string) render.Base {
 		refs = nil
 	}
 	return render.Base{
-		Version:   s.ver,
-		ChromaCSS: s.rnd.ChromaCSS(),
-		RepoName:  s.repo.Name(),
+		Version: s.ver,
+		RepoName: s.repo.Name(),
 		Ref:       ref,
 		Head:      s.repo.Head(),
 		Refs:      refs,

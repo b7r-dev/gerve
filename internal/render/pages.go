@@ -9,7 +9,6 @@ import (
 // Base is embedded by every page's data struct; layout.tmpl relies on it.
 type Base struct {
 	Version   string
-	ChromaCSS template.CSS
 	RepoName  string
 	Ref       string
 	Head      git.HeadInfo

@@ -1,8 +1,8 @@
 {{define "title"}}{{.Path}} · {{.RepoName}}{{end}}
 {{define "content"}}
 {{template "crumbs" .}}
-{{if .Blob.FromWorktree}}<div class="banner banner-warn">untracked — this file exists only in your working tree, not in any commit</div>{{end}}
-{{if eq .Change "deleted"}}<div class="banner banner-warn">deleted in the working tree — showing the committed version</div>{{end}}
+{{if .Blob.FromWorktree}}<div class="banner banner-untracked">untracked — this file exists only in your working tree, not in any commit</div>{{end}}
+{{if eq .Change "deleted"}}<div class="banner banner-deleted">deleted in the working tree — showing the committed version</div>{{end}}
 <div class="meta-line">
   {{with .Last}}<span class="muted">last commit</span>
     <a href="/commit/{{.Hash}}">{{short .Hash}}</a>

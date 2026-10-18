@@ -6,7 +6,7 @@
 <div class="meta-line">
   {{with .Last}}<span class="muted">last commit</span>
     <a href="/commit/{{.Hash}}">{{short .Hash}}</a>
-    <span class="strong">{{.Subject}}</span>
+    <a class="strong" href="/commit/{{.Hash}}">{{.Subject}}</a>
     <span class="muted">{{.Author}}, {{timeago .Time}}</span>{{end}}
 </div>
 <div class="toolbar">

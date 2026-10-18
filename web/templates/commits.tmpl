@@ -11,7 +11,7 @@
   {{range .Log.Commits}}
   <tr>
     <td class="hash"><a href="/commit/{{.Hash}}">{{short .Hash}}</a></td>
-    <td class="msg strong">{{.Subject}}</td>
+    <td class="msg"><a class="strong" href="/commit/{{.Hash}}">{{.Subject}}</a></td>
     <td class="author muted">{{.Author}}</td>
     <td class="age muted">{{timeago .Time}}</td>
   </tr>

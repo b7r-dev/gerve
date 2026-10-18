@@ -4,7 +4,7 @@
 <div class="meta-line">
   {{with .DirLast}}<span class="muted">last commit</span>
     <a href="/commit/{{.Hash}}">{{short .Hash}}</a>
-    <span class="strong">{{.Subject}}</span>
+    <a class="strong" href="/commit/{{.Hash}}">{{.Subject}}</a>
     <span class="muted">{{.Author}}, {{timeago .Time}}</span>{{end}}
   {{if .Overlay}}<span class="chip chip-live" title="untracked and modified files from the working tree are shown">live worktree</span>{{end}}
 </div>

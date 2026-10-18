@@ -379,8 +379,8 @@ td.name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-wi
 td.name a { color: var(--fg-1); font-weight: 500; }
 td.name a:hover { color: var(--ion); }
 td.msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30rem; }
-td.msg a { color: var(--fg-3); }
-td.msg a:hover { color: var(--fg-1); }
+/* the subject link takes its colour from its own class: .muted where it is a
+   row's secondary text, .strong where it is the row's primary text */
 td.age, td.size { text-align: right; white-space: nowrap; width: 6rem; color: var(--fg-3); }
 td.hash { white-space: nowrap; }
 .empty-row { padding: var(--sp-4) var(--sp-3); color: var(--fg-3); }
@@ -613,6 +613,17 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   color: var(--pool-bright);
   font: 600 var(--text-xs)/var(--sp-5) var(--font-mono);
 }
+/* One code size. Mono that shows repository content — paths, refs, hashes —
+   matches the wells it labels, so scanning down a page never mixes two code
+   sizes. Prose that is merely monospaced (the commit message) keeps its prose
+   size, and mono chrome (footer, logo) is not code at all. */
+.fhead,
+.bhead,
+.crumbs code,
+.meta-line code,
+.hashcode,
+td.hash,
+.avatar { font-size: var(--text-code); }
 .add { color: var(--add); font-weight: 600; }
 .del { color: var(--del); font-weight: 600; }
 .viewsel { margin-left: auto; }
@@ -688,7 +699,11 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .md li.task-list-item { list-style: none; margin-left: calc(-1 * var(--sp-4)); }
 .md li.task-list-item::marker { content: none; }
 .md input[type="checkbox"] { accent-color: var(--pool); margin-right: var(--sp-2); }
-.md table { border-collapse: collapse; margin: 0 0 1.25em; font-size: var(--text-sm); }
+/* Wide tables scroll inside the card rather than squeezing their columns into
+   tall wrapped cells; the renderer wraps each table in .table-scroll. */
+.md .table-scroll { overflow-x: auto; margin: 0 0 1.25em; }
+.md .table-scroll > table { margin: 0; width: max-content; }
+.md table { border-collapse: collapse; font-size: var(--text-sm); }
 .md th, .md td { border: 1px solid var(--border-1); padding: var(--sp-1) var(--sp-3); text-align: left; }
 .md th { background: var(--raised); font-weight: 600; color: var(--fg-2); }
 .md img { max-width: 100%; border: 1px solid var(--border-1); border-radius: var(--radius-2); display: block; margin: 0 0 1.25em; }

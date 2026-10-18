@@ -129,3 +129,26 @@ func TestTimeagoAndSizes(t *testing.T) {
 		t.Errorf("timeago seconds: %q", got)
 	}
 }
+
+func TestMarkdownTablesAreWrappedForScroll(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := []byte("| a | b |\n|---|---|\n| 1 | 2 |\n\nno table here\n")
+	out := string(rd.Markdown(src, func(string) string { return "" }))
+
+	if !strings.Contains(out, `<div class="table-scroll"><table>`) {
+		t.Errorf("table not wrapped in a scroll container:\n%s", out)
+	}
+	if !strings.Contains(out, "</table></div>") {
+		t.Errorf("table wrapper not closed:\n%s", out)
+	}
+	// every open wrapper must be closed, and no unwrapped table may remain
+	if n := strings.Count(out, `<div class="table-scroll">`); n != strings.Count(out, "</table></div>") {
+		t.Errorf("unbalanced table wrappers: %d open, %d closed", n, strings.Count(out, "</table></div>"))
+	}
+	if strings.Contains(out, "<table>") && !strings.Contains(out, `<div class="table-scroll"><table>`) {
+		t.Errorf("unwrapped table leaked:\n%s", out)
+	}
+}

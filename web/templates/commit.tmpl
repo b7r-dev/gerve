@@ -39,7 +39,7 @@
     {{else if eq .Status "A"}}<code class="path"><strong>{{.New}}</strong></code>
     {{else}}<code class="path"><strong>{{.New}}</strong></code>{{end}}
     {{if .Binary}}<span class="muted">binary &mdash; not shown</span>{{else}}<span class="muted">+{{.Adds}} &minus;{{.Dels}}</span>{{end}}
-    {{if and .New (ne .Status "D")}}<a class="right" href="{{urlFor "blob" $.Ref .New}}">view file &rarr;</a>{{end}}
+    {{if and .New (ne .Status "D")}}<a class="right" href="{{urlFor "blob" $.Ref .New}}">view file @ {{short $.Ref}} &rarr;</a>{{end}}
   </div>
   {{if not .Binary}}
   {{if eq $.View "side"}}

@@ -185,7 +185,20 @@ func (rd *Renderer) Markdown(src []byte, rewrite func(string) string) template.H
 	if err := rd.md.Renderer().Render(&b, src, doc); err != nil {
 		return template.HTML("<pre class=\"readme-plain\">" + template.HTMLEscapeString(string(src)) + "</pre>")
 	}
-	return template.HTML(b.String())
+	return template.HTML(wrapTables(b.String()))
+}
+
+// wrapTables puts each markdown table in its own scroll container so a wide
+// table scrolls sideways inside the card instead of squeezing its columns into
+// tall wrapped cells (see .md .table-scroll in app.css). Goldmark emits bare
+// <table> elements with no attributes, and GFM tables cannot nest inside one
+// another, so wrapping every open/close tag stays balanced.
+func wrapTables(html string) string {
+	if !strings.Contains(html, "<table>") {
+		return html
+	}
+	out := strings.ReplaceAll(html, "<table>", `<div class="table-scroll"><table>`)
+	return strings.ReplaceAll(out, "</table>", "</table></div>")
 }
 
 // rewriteDest maps one markdown destination through rewrite, leaving

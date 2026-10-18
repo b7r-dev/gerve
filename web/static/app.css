@@ -703,7 +703,7 @@ td.hash,
    tall wrapped cells; the renderer wraps each table in .table-scroll. */
 .md .table-scroll { overflow-x: auto; margin: 0 0 1.25em; }
 .md .table-scroll > table { margin: 0; width: max-content; }
-.md table { border-collapse: collapse; font-size: var(--text-sm); }
+.md table { border-collapse: collapse; font-size: var(--text-xs); }
 .md th, .md td { border: 1px solid var(--border-1); padding: var(--sp-1) var(--sp-3); text-align: left; }
 .md th { background: var(--raised); font-weight: 600; color: var(--fg-2); }
 .md img { max-width: 100%; border: 1px solid var(--border-1); border-radius: var(--radius-2); display: block; margin: 0 0 1.25em; }

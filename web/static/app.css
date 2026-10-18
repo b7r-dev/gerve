@@ -681,10 +681,54 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .errpage pre { text-align: left; }
 
 @media (max-width: 640px) {
-  .top { flex-wrap: wrap; }
-  td.age, td.size { display: none; }
+  /* long unbreakable tokens (SHAs, paths, URLs) may wrap anywhere */
+  .md, .commit-body, .meta-line, .crumbs, .bhead { overflow-wrap: anywhere; }
+
+  /* header: the ref selector takes its own full-width line */
+  .top { flex-wrap: wrap; row-gap: var(--sp-1); }
+  .top nav { flex-wrap: wrap; flex: 1 1 100%; justify-content: flex-start; }
+  .refjump { flex: 1 1 100%; }
+  select, #refswitch { max-width: 100%; width: 100%; }
+
   main { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
-  .top { margin: var(--sp-2) var(--sp-2) 0; }
+  .toolbar { flex-wrap: wrap; }
+  .fhead { flex-wrap: wrap; row-gap: var(--sp-1); }
+
+  /* listings stack into two-line rows: name, then message */
+  table.listing, table.listing tbody { display: block; }
+  table.listing tr {
+    display: block;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-1);
+  }
+  table.listing tr:last-child { border-bottom: none; }
+  table.listing td { display: block; padding: 0; border-bottom: none; }
+  table.listing td.icon { display: none; }
+  table.listing td.age, table.listing td.size { display: none; }
+  td.name { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  td.msg { max-width: none; white-space: normal; margin-top: 2px; }
+
+  /* commit log: hash + subject inline, then meta */
+  table.commits, table.commits tbody { display: block; }
+  table.commits tr {
+    display: block;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-1);
+  }
+  table.commits tr:last-child { border-bottom: none; }
+  table.commits td { display: inline; padding: 0; border-bottom: none; }
+  table.commits td.hash { margin-right: var(--sp-2); }
+  table.commits td.author::after { content: " · "; color: var(--fg-3); }
+
+  /* diffs: slimmer gutters, scroll inside the card */
+  .diff .dn {
+    min-width: 2.4rem;
+    width: 2.4rem;
+    padding-left: var(--sp-2);
+    padding-right: var(--sp-1);
+  }
+  .file, .diff-scroll { overflow-x: auto; }
+  table.diff.side { min-width: 42rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -43,6 +43,7 @@
   </div>
   {{if not .Binary}}
   {{if eq $.View "side"}}
+    <div class="diff-scroll">
     {{range .Sb}}
     <div class="hunk-h">{{.Header}}</div>
     <table class="diff side">
@@ -57,10 +58,13 @@
       {{end}}
     </table>
     {{end}}
+    </div>
   {{else}}
+    <div class="diff-scroll">
     <table class="diff">
       {{range .Rows}}<tr class="d-{{kindClass .Kind}}"><td class="dn">{{if .Old}}{{.Old}}{{end}}</td><td class="dn">{{if .New}}{{.New}}{{end}}</td><td class="dc">{{.Text}}</td></tr>{{end}}
     </table>
+    </div>
   {{end}}
   {{end}}
 </div>

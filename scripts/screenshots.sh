@@ -49,3 +49,14 @@ for width in 1280x900 390x844; do
   done
 done
 echo "done -> $OUT"
+
+echo "== width audit (mobile shots must be exactly 390px wide) =="
+bad=0
+for f in "$OUT"/*-w390x844.png; do
+  w=$(sips -g pixelWidth "$f" 2>/dev/null | awk '/pixelWidth/{print $2}')
+  if [ -n "$w" ] && [ "$w" != "390" ]; then
+    echo "  OVERFLOW $(basename "$f") width=$w"
+    bad=1
+  fi
+done
+[ "$bad" = 0 ] && echo "  no horizontal overflow" || exit 1

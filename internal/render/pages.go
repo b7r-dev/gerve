@@ -8,14 +8,14 @@ import (
 
 // Base is embedded by every page's data struct; layout.tmpl relies on it.
 type Base struct {
-	Version   string
-	RepoName  string
-	Ref       string
-	Head      git.HeadInfo
-	Refs      []git.RefInfo
-	Route     string // route name for the ref switcher: tree|blob|blame
-	Path      string
-	Crumbs    []Crumb
+	Version  string
+	RepoName string
+	Ref      string
+	Head     git.HeadInfo
+	Refs     []git.RefInfo
+	Route    string // route name for the ref switcher: tree|blob|blame
+	Path     string
+	Crumbs   []Crumb
 }
 
 // Crumb is one breadcrumb segment.

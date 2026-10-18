@@ -1,6 +1,6 @@
 {{define "title"}}refs · {{.RepoName}}{{end}}
 {{define "content"}}
-<span class="panel-label">branches</span>
+<h2 class="panel-label">branches</h2>
 <table class="listing">
   {{range .Branches}}
   <tr>
@@ -10,7 +10,7 @@
   </tr>
   {{else}}<tr><td class="muted empty-row">no branches</td></tr>{{end}}
 </table>
-<span class="panel-label">tags</span>
+<h2 class="panel-label">tags</h2>
 <table class="listing">
   {{range .Tags}}
   <tr>

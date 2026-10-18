@@ -11,14 +11,14 @@ import (
 
 func fixtureBase() Base {
 	return Base{
-		Version:   "test",
-		RepoName:  "dotgrid",
-		Ref:       "HEAD",
-		Head:      git.HeadInfo{Branch: "main"},
-		Refs:      []git.RefInfo{{Name: "main", Kind: "branch", Hash: "abc123def4567890123456789012345678901234"}},
-		Route:     "tree",
-		Path:      "",
-		Crumbs:    []Crumb{{Name: "src", URL: "/tree/HEAD/src"}},
+		Version:  "test",
+		RepoName: "dotgrid",
+		Ref:      "HEAD",
+		Head:     git.HeadInfo{Branch: "main"},
+		Refs:     []git.RefInfo{{Name: "main", Kind: "branch", Hash: "abc123def4567890123456789012345678901234"}},
+		Route:    "tree",
+		Path:     "",
+		Crumbs:   []Crumb{{Name: "src", URL: "/tree/HEAD/src"}},
 	}
 }
 
@@ -40,8 +40,8 @@ func TestPagesRenderNonEmpty(t *testing.T) {
 	pages := map[string]any{
 		"tree": TreePage{Base: b, Entries: []git.Entry{{Name: "main.go", Path: "main.go", InGit: true, Last: &c}}, DirLast: &c, Overlay: true,
 			Readme: "<p>readme</p>", ReadmeName: "README.md", Recent: []git.CommitInfo{c}},
-		"blob": BlobPage{Base: b, Blob: &git.Blob{Path: "main.go", Size: 10, Content: []byte("package main")}, Last: &c, Lines: 1, Code: "<div>code</div>", CanBlame: true, CanHistory: true},
-		"blame": BlamePage{Base: b, Groups: []git.BlameGroup{{Commit: c, Lines: []git.BlameLine{{Num: 1, Text: "package main"}}}}},
+		"blob":    BlobPage{Base: b, Blob: &git.Blob{Path: "main.go", Size: 10, Content: []byte("package main")}, Last: &c, Lines: 1, Code: "<div>code</div>", CanBlame: true, CanHistory: true},
+		"blame":   BlamePage{Base: b, Groups: []git.BlameGroup{{Commit: c, Lines: []git.BlameLine{{Num: 1, Text: "package main"}}}}},
 		"commits": CommitsPage{Base: b, Log: &git.LogPage{Commits: []git.CommitInfo{c}, Next: true}, Page: 0, NextURL: "/commits/HEAD?page=1"},
 		"commit": CommitPage{Base: b, Meta: &git.CommitMeta{CommitInfo: c, Body: "body", Parents: []string{"def4567901234567890123456789012345678901"}}, Merge: true,
 			Files: []FileView{{FileDiff: git.FileDiff{Status: "R", Old: "a.txt", New: "b.txt", Adds: 1, Dels: 1, Patch: "@@ -1,1 +1,1 @@\n-a\n+b\n"}, Rows: git.UnifiedRows("@@ -1,1 +1,1 @@\n-a\n+b\n")}}, View: "unified"},
@@ -85,8 +85,8 @@ func TestMarkdownRewriteLinks(t *testing.T) {
 	checks := []string{
 		`href="/tree/HEAD/docs/personas/"`,
 		`src="/raw/HEAD/assets/logo.png"`,
-		`href="https://example.com/x"`, // external untouched
-		`href="#sec"`,                  // anchor untouched
+		`href="https://example.com/x"`,      // external untouched
+		`href="#sec"`,                       // anchor untouched
 		`href="/blob/HEAD/docs/a.md#intro"`, // fragment preserved
 		`href="nope/missing.txt"`,           // "" from rewrite keeps original
 	}
@@ -150,5 +150,48 @@ func TestMarkdownTablesAreWrappedForScroll(t *testing.T) {
 	}
 	if strings.Contains(out, "<table>") && !strings.Contains(out, `<div class="table-scroll"><table>`) {
 		t.Errorf("unwrapped table leaked:\n%s", out)
+	}
+}
+
+func TestVersionFontURLs(t *testing.T) {
+	hashes := map[string]string{"fonts/a.woff2": "abc12345"}
+	cases := []struct{ in, want string }{
+		// every quoting style a stylesheet may use gets versioned, normalised
+		// to double quotes so the served CSS is uniform
+		{`src: url("/static/fonts/a.woff2") format("woff2");`, `src: url("/static/fonts/a.woff2?v=abc12345") format("woff2");`},
+		{`src: url('/static/fonts/a.woff2') format("woff2");`, `src: url("/static/fonts/a.woff2?v=abc12345") format("woff2");`},
+		{`src: url(/static/fonts/a.woff2) format("woff2");`, `src: url("/static/fonts/a.woff2?v=abc12345") format("woff2");`},
+		{`src: url( "/static/fonts/a.woff2" );`, `src: url("/static/fonts/a.woff2?v=abc12345");`},
+		// untouched: already versioned, unknown font, foreign path
+		{`url("/static/fonts/a.woff2?v=old")`, `url("/static/fonts/a.woff2?v=old")`},
+		{`url("/static/fonts/b.woff2")`, `url("/static/fonts/b.woff2")`},
+		{`url("/uploads/x.woff2")`, `url("/uploads/x.woff2")`},
+	}
+	for _, c := range cases {
+		if got := versionFontURLs(c.in, hashes); got != c.want {
+			t.Errorf("versionFontURLs(%q)\n got %q\nwant %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestWrapTablesLeavesCodeAlone: only real tables get the scroll wrapper. The
+// literal text "<table>" inside a code span or a fence is escaped by goldmark
+// and must survive unwrapped.
+func TestWrapTablesLeavesCodeAlone(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := []byte("| a | b |\n|---|---|\n| 1 | 2 |\n\nInline `<table>` tag:\n\n```html\n<table><tr><td>x</td></tr></table>\n```\n")
+	out := string(rd.Markdown(src, func(string) string { return "" }))
+
+	if n := strings.Count(out, `<div class="table-scroll">`); n != 1 {
+		t.Errorf("wrapped %d tables, want 1 (only the GFM table):\n%s", n, out)
+	}
+	if n := strings.Count(out, "<table>"); n != 1 {
+		t.Errorf("found %d raw <table> tags, want 1 (escaped code must not match):\n%s", n, out)
+	}
+	if !strings.Contains(out, "&lt;table") {
+		t.Errorf("escaped code containing <table> went missing:\n%s", out)
 	}
 }

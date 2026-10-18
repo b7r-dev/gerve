@@ -355,6 +355,11 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/static/")
+	if name == "" || strings.HasSuffix(name, "/") {
+		// the embedded tree is only ever addressed file by file: no listings
+		http.NotFound(w, r)
+		return
+	}
 	if v := r.URL.Query().Get("v"); v != "" && v == s.rnd.AssetVersion(name) {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	} else {

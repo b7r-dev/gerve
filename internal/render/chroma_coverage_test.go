@@ -16,7 +16,7 @@ import (
 // every comment, keyword, and string was styled. This pins the palette against
 // the lexers gerve can actually serve.
 var (
-	classAttrRe = regexp.MustCompile(`class="([^"]+)"`)
+	classAttrRe  = regexp.MustCompile(`class="([^"]+)"`)
 	chromaRuleRe = regexp.MustCompile(`\.chroma \.([a-z0-9-]+)`)
 )
 
@@ -67,18 +67,18 @@ func TestChromaClassesAreAllStyled(t *testing.T) {
 	// One sample per lexer family gerve is likely to meet, written to exercise
 	// comments, keywords, strings, numbers, variables, selectors, and operators.
 	sources := map[string]string{
-		"main.go":    "package main\n\nimport \"fmt\"\n\n// greet the world\nfunc main() {\n\tname := \"world\"\n\tfmt.Printf(\"%s %d\\n\", name, 42)\n}\n",
-		"run.sh":     "#!/usr/bin/env bash\n# a comment\nset -euo pipefail\ncd \"$(dirname \"$0\")/..\"\nfor f in *.txt; do echo \"${f}\"; done\n",
-		"app.css":    "/* note */\n:root { --x: 1px; }\n#id, .cls { color: #fff !important; }\n@media (min-width: 40em) { body { margin: 0 auto; } }\n",
-		"app.js":     "// note\nconst x = 1;\nfunction f(a) { return `t${a}`; }\nf(x);\n",
+		"main.go":     "package main\n\nimport \"fmt\"\n\n// greet the world\nfunc main() {\n\tname := \"world\"\n\tfmt.Printf(\"%s %d\\n\", name, 42)\n}\n",
+		"run.sh":      "#!/usr/bin/env bash\n# a comment\nset -euo pipefail\ncd \"$(dirname \"$0\")/..\"\nfor f in *.txt; do echo \"${f}\"; done\n",
+		"app.css":     "/* note */\n:root { --x: 1px; }\n#id, .cls { color: #fff !important; }\n@media (min-width: 40em) { body { margin: 0 auto; } }\n",
+		"app.js":      "// note\nconst x = 1;\nfunction f(a) { return `t${a}`; }\nf(x);\n",
 		"layout.tmpl": "{{if .X}}<div class=\"a\" id=\"b\">{{.Y}}</div>{{end}}\n",
-		"go.mod":     "module example.com/x\n\ngo 1.26\n\nrequire github.com/yuin/goldmark v1.7.0\n",
-		"conf.yaml":  "key: value\nlist:\n  - 1\n  - \"two\"\n# comment\n",
-		"data.json":  "{\n  \"key\": [1, 2.5, true, null],\n  \"other\": \"text\"\n}\n",
-		"tool.py":    "#!/usr/bin/env python3\nimport re\n\n# comment\ndef f(a: int) -> str:\n    return f\"{a + 1}\"\n",
-		"q.sql":      "SELECT id, name FROM users WHERE age > 21 ORDER BY name;\n-- comment\n",
-		"lib.rs":     "// note\npub fn f(a: u32) -> u32 {\n    let b = a + 1;\n    b\n}\n",
-		"conf.toml":  "# note\n[table]\nkey = \"value\"\nnum = 42\n",
+		"go.mod":      "module example.com/x\n\ngo 1.26\n\nrequire github.com/yuin/goldmark v1.7.0\n",
+		"conf.yaml":   "key: value\nlist:\n  - 1\n  - \"two\"\n# comment\n",
+		"data.json":   "{\n  \"key\": [1, 2.5, true, null],\n  \"other\": \"text\"\n}\n",
+		"tool.py":     "#!/usr/bin/env python3\nimport re\n\n# comment\ndef f(a: int) -> str:\n    return f\"{a + 1}\"\n",
+		"q.sql":       "SELECT id, name FROM users WHERE age > 21 ORDER BY name;\n-- comment\n",
+		"lib.rs":      "// note\npub fn f(a: u32) -> u32 {\n    let b = a + 1;\n    b\n}\n",
+		"conf.toml":   "# note\n[table]\nkey = \"value\"\nnum = 42\n",
 	}
 
 	for name, src := range sources {

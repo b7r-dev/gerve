@@ -127,14 +127,14 @@ func (s *Server) newBase(ref, path, route string) render.Base {
 		refs = nil
 	}
 	return render.Base{
-		Version: s.ver,
+		Version:  s.ver,
 		RepoName: s.repo.Name(),
-		Ref:       ref,
-		Head:      s.repo.Head(),
-		Refs:      refs,
-		Route:     route,
-		Path:      path,
-		Crumbs:    s.crumbs(ref, path),
+		Ref:      ref,
+		Head:     s.repo.Head(),
+		Refs:     refs,
+		Route:    route,
+		Path:     path,
+		Crumbs:   s.crumbs(ref, path),
 	}
 }
 

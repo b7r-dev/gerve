@@ -4,37 +4,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/b7r-dev/gerve/internal/git"
 	"github.com/b7r-dev/gerve/internal/render"
 )
 
 func staticTestServer(t *testing.T) (*httptest.Server, *render.Renderer) {
 	t.Helper()
-	dir := t.TempDir()
-	gitHelper(t, dir, "init", "-q", "-b", "main")
-	gitHelper(t, dir, "config", "user.email", "t@example.com")
-	gitHelper(t, dir, "config", "user.name", "T")
-	if err := os.WriteFile(dir+"/file.txt", []byte("x\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	gitHelper(t, dir, "add", "-A")
-	gitHelper(t, dir, "commit", "-q", "-m", "one")
-
-	repo, err := git.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rnd, err := render.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts := httptest.NewServer(New(repo, rnd, Options{Version: "test"}).Handler())
-	t.Cleanup(ts.Close)
-	return ts, rnd
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{"file.txt": "x\n"})
+	return newTestServer(t, dir)
 }
 
 func getBody(t *testing.T, url string) (string, http.Header) {
@@ -89,5 +69,34 @@ func TestAssetsAreContentVersioned(t *testing.T) {
 	}
 	if h := strings.Count(css, "/static/fonts/"); h == 0 || strings.Count(css, "?v=") < h {
 		t.Errorf("expected every font URL versioned: fonts=%d versions=%d", h, strings.Count(css, "?v="))
+	}
+}
+
+// TestStaticHasNoDirectoryListing keeps the embedded tree addressed file by
+// file: /static/ and its subdirectories must not enumerate their contents.
+func TestStaticHasNoDirectoryListing(t *testing.T) {
+	ts, _ := staticTestServer(t)
+	for _, path := range []string{"/static/", "/static/fonts/"} {
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", path, resp.StatusCode)
+		}
+		if strings.Contains(string(body), "app.css") || strings.Contains(string(body), "woff2") {
+			t.Errorf("%s: listing leaked asset names", path)
+		}
+	}
+	// a real file still serves
+	if resp, err := http.Get(ts.URL + "/static/app.js"); err != nil {
+		t.Fatal(err)
+	} else {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("/static/app.js: status %d, want 200", resp.StatusCode)
+		}
 	}
 }

@@ -21,7 +21,7 @@ decl = re.compile(r"^\s*(padding|margin|gap|row-gap|column-gap)[a-z-]*\s*:\s*([^
 # The scale discipline governs layout spacing (px/rem).
 component_ok = re.compile(
     r"^(0|auto|calc\(.+\)|var\(--sp-[1-7]\)|"
-    r"0\.?5?px|2px|4px|8px|12px|16px|24px|32px|48px|999px|"
+    r"0\.?5?px|2px|4px|8px|12px|16px|24px|32px|48px|"
     r"[0-9]*\.?[0-9]+em)$"
 )
 

@@ -21,8 +21,8 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -123,7 +123,11 @@ func hashStatic() (map[string]string, error) {
 	return out, nil
 }
 
-var fontURLRe = regexp.MustCompile(`url\("/static/(fonts/[^"?]+)"\)`)
+// fontURLRe matches a font reference in any of the forms a stylesheet may use —
+// url("/static/fonts/x.woff2"), url('/static/...'), or unquoted — so a reformat
+// cannot silently stop versioning fonts. A URL that already carries ?v= is not
+// matched, which keeps the rewrite idempotent.
+var fontURLRe = regexp.MustCompile(`url\(\s*['"]?/static/(fonts/[^'")\s?]+)['"]?\s*\)`)
 
 // versionCSS rewrites the font URLs inside app.css to carry content hashes,
 // closing the last stale-asset hole (a re-vendored font under the same name).
@@ -132,17 +136,24 @@ func versionCSS(hashes map[string]string) []byte {
 	if err != nil {
 		return nil
 	}
-	s := fontURLRe.ReplaceAllStringFunc(string(src), func(m string) string {
+	return []byte(versionFontURLs(string(src), hashes))
+}
+
+// versionFontURLs appends ?v=<hash> to every font URL whose path it has a hash
+// for, normalising the quoting to double quotes and leaving everything else —
+// unknown paths, foreign URLs, already-versioned URLs — untouched.
+func versionFontURLs(css string, hashes map[string]string) string {
+	return fontURLRe.ReplaceAllStringFunc(css, func(m string) string {
 		sub := fontURLRe.FindStringSubmatch(m)
 		if len(sub) != 2 {
 			return m
 		}
-		if h, ok := hashes[sub[1]]; ok {
-			return `url("/static/` + sub[1] + "?v=" + h + `")`
+		h, ok := hashes[sub[1]]
+		if !ok {
+			return m
 		}
-		return m
+		return `url("/static/` + sub[1] + "?v=" + h + `")`
 	})
-	return []byte(s)
 }
 
 // AssetVersion returns the content hash of an embedded static file (or "").
@@ -252,6 +263,9 @@ func (rd *Renderer) Highlight(content []byte, filename string) (out template.HTM
 		return "", false
 	}
 	formatter := chromahtml.New(chromahtml.WithClasses(true))
+	// With WithClasses every colour comes from app.css, so the theme toggle can
+	// restyle code without a reload; the style only satisfies the formatter API
+	// and must be non-nil.
 	style := styles.Get("github")
 	var b bytes.Buffer
 	if err := formatter.Format(&b, style, it); err != nil {
@@ -286,8 +300,10 @@ func chromaLines(out string) []string {
 	}
 	lines := make([]string, 0, len(parts)-1)
 	for _, p := range parts[1:] {
-		// chroma closes the line span *after* the newline, so the close tag
-		// comes off first; leaving the newline would add a second line box
+		// Chroma puts the newline inside the line's last token (a .w span), so
+		// the line span's own close tag is all that needs snipping. The newline
+		// trim stays as a guard for a lexer that emits a bare one after it —
+		// leaving one behind would add a second line box to that cell.
 		p = strings.TrimSuffix(p, "</span>")
 		p = strings.TrimSuffix(p, "\n")
 		lines = append(lines, p)

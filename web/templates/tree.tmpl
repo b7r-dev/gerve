@@ -28,13 +28,13 @@
 </table>
 {{if .Readme}}
 <section class="card readme">
-  <span class="panel-label">{{.ReadmeName}}</span>
+  <h2 class="panel-label">{{.ReadmeName}}</h2>
   <div class="md">{{.Readme}}</div>
 </section>
 {{end}}
 {{if .Recent}}
 <section class="card">
-  <span class="panel-label">recent commits</span>
+  <h2 class="panel-label">recent commits</h2>
   {{range .Recent}}
   <div class="rc">
     <a href="/commit/{{.Hash}}">{{short .Hash}}</a>

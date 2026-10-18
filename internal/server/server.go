@@ -46,7 +46,7 @@ func New(repo *git.Repo, rnd *render.Renderer, opts Options) *Server {
 	}
 
 	if sub, err := fs.Sub(web.Static(), "static"); err == nil {
-		s.static = http.StripPrefix("/static/", cacheStatic(http.FileServer(http.FS(sub))))
+		s.static = http.StripPrefix("/static/", http.FileServer(http.FS(sub)))
 	}
 
 	mux := http.NewServeMux()
@@ -197,11 +197,4 @@ func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, code int, tit
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	s.errorPage(w, r, http.StatusNotFound, "not found",
 		"The page you asked for does not exist. Paths look like /tree/{ref}/{path}.")
-}
-
-func cacheStatic(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		next.ServeHTTP(w, r)
-	})
 }

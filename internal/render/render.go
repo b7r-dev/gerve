@@ -5,11 +5,15 @@ package render
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,6 +38,11 @@ const (
 type Renderer struct {
 	pages map[string]*template.Template
 	md    goldmark.Markdown
+
+	// assetHash maps embedded static paths to short content hashes, and
+	// css is app.css with its font URLs versioned by those hashes.
+	assetHash map[string]string
+	css       []byte
 }
 
 // New parses templates and prepares markdown + chroma CSS.
@@ -49,6 +58,12 @@ func New() (*Renderer, error) {
 		"kindClass":     kindClass,
 		"initial":       initial,
 	}
+
+	hashes, err := hashStatic()
+	if err != nil {
+		return nil, fmt.Errorf("hash static assets: %w", err)
+	}
+	funcs["asset"] = func(name string) string { return assetURL(name, hashes) }
 
 	root := template.New("gerve").Funcs(funcs)
 	if _, err := root.ParseFS(web.Templates(), "templates/layout.tmpl", "templates/partial-*.tmpl"); err != nil {
@@ -76,8 +91,65 @@ func New() (*Renderer, error) {
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 	)
 
-	return &Renderer{pages: pages, md: md}, nil
+	return &Renderer{pages: pages, md: md, assetHash: hashes, css: versionCSS(hashes)}, nil
 }
+
+// asset returns a static URL carrying the file's content hash, so a new
+// binary run never serves a stale stylesheet, script, or font.
+func assetURL(name string, hashes map[string]string) string {
+	if h, ok := hashes[name]; ok {
+		return "/static/" + name + "?v=" + h
+	}
+	return "/static/" + name
+}
+
+func hashStatic() (map[string]string, error) {
+	out := map[string]string{}
+	err := fs.WalkDir(web.Static(), "static", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(web.Static(), p)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(b)
+		out[strings.TrimPrefix(p, "static/")] = hex.EncodeToString(sum[:])[:8]
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var fontURLRe = regexp.MustCompile(`url\("/static/(fonts/[^"?]+)"\)`)
+
+// versionCSS rewrites the font URLs inside app.css to carry content hashes,
+// closing the last stale-asset hole (a re-vendored font under the same name).
+func versionCSS(hashes map[string]string) []byte {
+	src, err := fs.ReadFile(web.Static(), "static/app.css")
+	if err != nil {
+		return nil
+	}
+	s := fontURLRe.ReplaceAllStringFunc(string(src), func(m string) string {
+		sub := fontURLRe.FindStringSubmatch(m)
+		if len(sub) != 2 {
+			return m
+		}
+		if h, ok := hashes[sub[1]]; ok {
+			return `url("/static/` + sub[1] + "?v=" + h + `")`
+		}
+		return m
+	})
+	return []byte(s)
+}
+
+// AssetVersion returns the content hash of an embedded static file (or "").
+func (rd *Renderer) AssetVersion(name string) string { return rd.assetHash[name] }
+
+// VersionedCSS returns app.css with content-hashed font URLs.
+func (rd *Renderer) VersionedCSS() []byte { return rd.css }
 
 // Page renders a named page with the shared layout.
 func (rd *Renderer) Page(w io.Writer, name string, data any) {

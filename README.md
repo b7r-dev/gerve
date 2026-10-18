@@ -75,7 +75,9 @@ go-git for object access (refs, trees, blobs); the `git` CLI for the things it
 does best — rename-aware patches, blame, worktree status, and log with
 `--follow`. Server-rendered `html/template` with all assets embedded via
 `go:embed` — zero build step, zero network egress, one static binary.
-localhost-only by default. Read-only: gerve never writes to the repository.
+Stylesheet, script, and font URLs carry content hashes, so browsers cache
+them hard and never serve a stale asset after an upgrade. localhost-only by
+default. Read-only: gerve never writes to the repository.
 
 ## What you'll see
 

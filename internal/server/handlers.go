@@ -346,10 +346,26 @@ func (s *Server) refsPage(w http.ResponseWriter, r *http.Request) {
 	s.rnd.Page(w, "refs", page)
 }
 
+// serveStatic serves the embedded assets. A request whose ?v= matches the
+// file's content hash is immutable and cached hard; anything else revalidates,
+// so a stale stylesheet can never outlive a restart.
 func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	if s.static == nil {
 		http.NotFound(w, r)
 		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/static/")
+	if v := r.URL.Query().Get("v"); v != "" && v == s.rnd.AssetVersion(name) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+	if name == "app.css" {
+		if css := s.rnd.VersionedCSS(); css != nil {
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+			http.ServeContent(w, r, "app.css", time.Time{}, bytes.NewReader(css))
+			return
+		}
 	}
 	s.static.ServeHTTP(w, r)
 }

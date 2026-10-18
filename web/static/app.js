@@ -38,4 +38,21 @@
         .catch(function () {});
     });
   });
+
+  // Relative times ("5 minutes ago") carry their exact instant in datetime.
+  // Render it in the viewer's own clock — only the browser knows the timezone —
+  // and restate UTC in the same locale so the two popover lines read alike. The
+  // server already put UTC in the markup, so the popover is useful either way.
+  document.querySelectorAll("time.time[datetime]").forEach(function (el) {
+    var when = new Date(el.getAttribute("datetime"));
+    if (isNaN(when.getTime())) return;
+    var opts = { dateStyle: "medium", timeStyle: "medium" };
+    var local = el.querySelector(".time-local");
+    var utc = el.querySelector(".time-utc");
+    if (local) local.textContent = when.toLocaleString(undefined, opts);
+    if (utc) {
+      var utcOpts = { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" };
+      utc.textContent = when.toLocaleString(undefined, utcOpts) + " UTC";
+    }
+  });
 })();

@@ -116,17 +116,37 @@ func TestMarkdownSoftWrapsCollapse(t *testing.T) {
 }
 
 func TestTimeagoAndSizes(t *testing.T) {
-	if got := timeago(time.Now().Add(-2 * time.Hour)); got != "2 hours ago" {
+	if got := timeagoText(time.Now().Add(-2 * time.Hour)); got != "2 hours ago" {
 		t.Errorf("timeago hours: %q", got)
 	}
-	if got := timeago(time.Now().Add(90 * time.Second)); got != "in 1 minute" {
+	if got := timeagoText(time.Now().Add(90 * time.Second)); got != "in 1 minute" {
 		t.Errorf("timeago future: %q", got)
 	}
 	if got := humanBytes(1536); got != "1.5 KB" {
 		t.Errorf("humanBytes: %q", got)
 	}
-	if got := timeago(time.Now().Add(-30 * time.Second)); got != "just now" {
+	if got := timeagoText(time.Now().Add(-30 * time.Second)); got != "just now" {
 		t.Errorf("timeago seconds: %q", got)
+	}
+}
+
+// TestTimeagoCarriesTheAbsoluteInstant: a relative time is a <time> element
+// holding the exact instant, with UTC rendered server-side so the hover popover
+// is useful without JavaScript.
+func TestTimeagoCarriesTheAbsoluteInstant(t *testing.T) {
+	if got := timeago(time.Time{}); got != "" {
+		t.Errorf("zero time should render nothing, got %q", got)
+	}
+	stamp := time.Date(2026, 10, 18, 16, 12, 34, 0, time.UTC)
+	got := string(timeago(stamp))
+	for _, want := range []string{
+		`<time class="time" datetime="2026-10-18T16:12:34Z">`,
+		`<span class="time-local"></span>`,
+		`<span class="time-utc">2026-10-18 16:12:34 UTC</span>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("timeago markup missing %q\ngot: %s", want, got)
+		}
 	}
 }
 

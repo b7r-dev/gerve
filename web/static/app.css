@@ -307,6 +307,35 @@ footer .dot-rule {
 .meta-line code,
 .crumbs code { font-size: var(--text-code); }
 
+/* relative times — the popover carries the absolute instant ----------------- */
+
+/* The relative label never has to be guessed at: hovering reveals the viewer's
+   own clock and UTC. UTC is server-rendered so the popover works without
+   JavaScript; .time-local is filled in by app.js, which is the only side that
+   knows the viewer's timezone. */
+.time { position: relative; }
+.time-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--sp-1));
+  z-index: 60; /* above the sticky header, which sits at 50 */
+  display: none;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  background: var(--overlay);
+  box-shadow: var(--lift);
+  font: 400 var(--text-code)/1.5 var(--font-mono);
+  white-space: nowrap;
+}
+.time:hover .time-tip { display: block; }
+.time-local { display: block; color: var(--fg-1); }
+.time-local:empty { display: none; } /* until app.js supplies the viewer's clock */
+.time-utc { display: block; color: var(--fg-3); }
+/* right-aligned columns hang the tip leftwards so it stays on screen */
+td.age .time-tip,
+.rc .time-tip { left: auto; right: 0; }
+
 .banner {
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-1);
@@ -752,6 +781,12 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   table.commits td { display: inline; padding: 0; border-bottom: none; }
   table.commits td.hash { margin-right: var(--sp-2); }
   table.commits td.author::after { content: " · "; color: var(--fg-3); }
+  /* keep each commit's relative time on the byline: the generic age rule above
+     hides it, which also left the author's " · " separator dangling */
+  table.commits td.age { display: inline; }
+
+  /* a hover tip wraps rather than pushing a narrow window sideways */
+  .time-tip { white-space: normal; max-width: calc(100vw - var(--sp-6)); }
 
   /* diffs: slimmer gutters, scroll inside the card */
   .diff .dn {

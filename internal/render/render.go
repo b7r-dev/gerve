@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -385,7 +386,27 @@ func initial(name string) string {
 	return "?"
 }
 
-func timeago(t time.Time) string {
+// timeago renders a relative time as a <time> element that also carries the
+// absolute instant, so hovering reveals the viewer's own clock beside UTC.
+//
+// UTC is rendered here rather than client-side: the popover then says something
+// useful with JavaScript disabled and to anything reading the markup, and the
+// relative label is never the only description of an instant. app.js fills in
+// the viewer's local time, which is the one part the server cannot know.
+func timeago(t time.Time) template.HTML {
+	if t.IsZero() {
+		return ""
+	}
+	utc := t.UTC()
+	return template.HTML(`<time class="time" datetime="` + utc.Format(time.RFC3339) + `">` +
+		html.EscapeString(timeagoText(t)) +
+		`<span class="time-tip"><span class="time-local"></span><span class="time-utc">` +
+		html.EscapeString(utc.Format("2006-01-02 15:04:05 UTC")) +
+		`</span></span></time>`)
+}
+
+// timeagoText is the relative label on its own, e.g. "5 minutes ago".
+func timeagoText(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}

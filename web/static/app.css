@@ -87,11 +87,10 @@
   --text-md: 1.0625rem;
   --text-lg: 1.375rem;
   --text-xl: 1.625rem;
-  /* code layer — rides the xs/2xs steps, but named because Plex Mono's large
+  /* code layer — rides the 2xs step, but named because Plex Mono's large
      x-height and wide glyphs make code read a size larger than the same px of
-     sans: wells sit a step *below* the prose they annotate, never beside it. */
-  --text-code: var(--text-xs);      /* 12px — wells, diffs, fenced blocks */
-  --text-code-sm: var(--text-2xs);  /* 11px — gutters, line numbers */
+     sans: wells sit *below* the prose they annotate, never beside it. */
+  --text-code: var(--text-2xs);     /* 11px — wells, diffs, fenced blocks, gutters */
 
   /* space scale */
   --sp-1: 4px;
@@ -425,12 +424,9 @@ td.hash { white-space: nowrap; }
 
 /* code — sunken wells --------------------------------------------------------- */
 
-.codewrap {
-  overflow: auto;
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-2);
-  background: var(--sunken);
-}
+/* Every code surface is the same shape: one row per line, gutter cell plus
+   content cell, so blob, blame, diffs and plain text all align identically
+   and each gutter can stick while its line scrolls. */
 .plaincode {
   overflow: auto;
   border: 1px solid var(--border-1);
@@ -440,58 +436,57 @@ td.hash { white-space: nowrap; }
 .plaincode table, .blame table { border-collapse: collapse; width: 100%; }
 .ln, .dn {
   color: var(--fg-3);
-  opacity: 0.72;
+  /* No opacity: these cells double as sticky gutters, and the background must
+     stay opaque or the code scrolling underneath shows through the digits. */
   text-align: right;
   padding: 0 var(--sp-2) 0 var(--sp-3);
   min-width: 3.2rem;
-  font-size: var(--text-code-sm);
-  /* gutter digits ride a step below the code, but must keep the code's line
-     box exactly — with a relative line-height the numbers drift off their lines */
-  line-height: calc(var(--text-code) * 1.5);
+  /* relative, so the number tracks its own line whatever the font resolves to.
+     The height is a floor: a blank line's cell would otherwise be free to
+     collapse and make empty lines shorter than filled ones. */
+  line-height: 1.5;
+  height: 1.5em;
+  /* the digit sits optically centred in its own line box, not pinned to the top */
+  vertical-align: middle;
   user-select: none;
-  vertical-align: top;
 }
 .lt { white-space: pre; padding: 0 var(--sp-3) 0 var(--sp-2); }
-.codewrap pre, .plaincode pre, .plaincode td, .codewrap td {
+.plaincode pre, .plaincode td {
   margin: 0;
   font-size: var(--text-code);
   line-height: 1.5;
+  /* floor the row height so blank lines match filled ones */
+  height: 1.5em;
 }
+/* Gutters hold their place while the code scrolls sideways — the same gesture
+   as the diff viewer, so a line reads identically in both. Opaque background
+   (see .ln/.dn) so nothing bleeds through the digits. */
+.plaincode td.ln { position: sticky; left: 0; background: var(--sunken); }
 
 /* chroma — tokens derived from the palette (dark default, light scoped) ------ */
 
 .chroma { color: var(--fg-1); }
-.chroma .lntable { border-spacing: 0; padding: 0; margin: 0; border: 0; width: auto; overflow: visible; display: block; }
-.chroma .lntd { vertical-align: top; padding: 0; margin: 0; border: 0; }
-.chroma .lnt, .chroma .ln {
-  white-space: pre;
-  user-select: none;
-  color: var(--fg-3);
-  opacity: 0.72;
-  text-align: right;
-  padding: 0 0.5em;
-  margin-right: 0.6em;
-  font-size: var(--text-code-sm);
-  line-height: calc(var(--text-code) * 1.5);
-}
 .chroma .hl { background: var(--pool-tint); display: block; width: 100%; }
 .chroma .x { color: var(--fg-3); }
 
 .chroma .err { color: var(--del); }
 .chroma .k, .chroma .kc, .chroma .kd, .chroma .kn,
-.chroma .kp, .chroma .kr, .chroma .kt, .chroma .nb { color: var(--pool-bright); }
+.chroma .kp, .chroma .kr, .chroma .kt, .chroma .nb,
+.chroma .nt { color: var(--pool-bright); }
 .chroma .s, .chroma .s1, .chroma .s2, .chroma .sa, .chroma .sb,
 .chroma .sc, .chroma .sd, .chroma .se, .chroma .sh,
-.chroma .si, .chroma .sr, .chroma .ss, .chroma .na { color: var(--paper); }
-.chroma .c, .chroma .c1, .chroma .ch, .chroma .cm, .chroma .cs {
+.chroma .si, .chroma .sr, .chroma .ss, .chroma .na,
+.chroma .l { color: var(--paper); }
+.chroma .c, .chroma .c1, .chroma .ch, .chroma .cm, .chroma .cs,
+.chroma .cp {
   color: var(--fg-3);
   font-style: italic;
 }
 .chroma .m, .chroma .mb, .chroma .mf, .chroma .mh,
-.chroma .mi, .chroma .ml, .chroma .mo { color: var(--ion); }
+.chroma .mi, .chroma .ml, .chroma .mo, .chroma .nv { color: var(--ion); }
 .chroma .nf { color: var(--fg-1); font-weight: 600; }
 .chroma .fm { color: var(--fg-1); }
-.chroma .nc { color: var(--pool-bright); }
+.chroma .nc, .chroma .nn { color: var(--pool-bright); }
 .chroma .nd { color: var(--del); }
 .chroma .o, .chroma .ow, .chroma .p { color: var(--fg-2); }
 .chroma .n, .chroma .nx { color: var(--fg-1); }
@@ -503,17 +498,19 @@ td.hash { white-space: nowrap; }
 html.light .chroma .err { color: var(--del); }
 html.light .chroma .k, html.light .chroma .kc, html.light .chroma .kd,
 html.light .chroma .kn, html.light .chroma .kp, html.light .chroma .kr,
-html.light .chroma .kt, html.light .chroma .nb { color: var(--pool); }
+html.light .chroma .kt, html.light .chroma .nb,
+html.light .chroma .nt { color: var(--pool); }
 html.light .chroma .s, html.light .chroma .s1, html.light .chroma .s2,
 html.light .chroma .sa, html.light .chroma .sb, html.light .chroma .sc,
 html.light .chroma .sd, html.light .chroma .se, html.light .chroma .sh,
 html.light .chroma .si, html.light .chroma .sr, html.light .chroma .ss,
-html.light .chroma .na { color: var(--paper); }
+html.light .chroma .na, html.light .chroma .l { color: var(--paper); }
 html.light .chroma .c, html.light .chroma .c1, html.light .chroma .ch,
-html.light .chroma .cm, html.light .chroma .cs { color: var(--fg-3); }
+html.light .chroma .cm, html.light .chroma .cs,
+html.light .chroma .cp { color: var(--fg-3); }
 html.light .chroma .m, html.light .chroma .mb, html.light .chroma .mf,
 html.light .chroma .mh, html.light .chroma .mi, html.light .chroma .ml,
-html.light .chroma .mo { color: var(--ion); }
+html.light .chroma .mo, html.light .chroma .nv { color: var(--ion); }
 html.light .chroma .nd { color: var(--del); }
 html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: var(--fg-2); }
 
@@ -558,15 +555,27 @@ html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: va
 .fhead .path { word-break: break-all; }
 .fhead .right { margin-left: auto; }
 
+/* Diffs scroll the same way the code viewer does: the file portion moves
+   sideways, nothing wraps, so one line reads identically in both views.
+   The header stays put, and gutters/hunk markers stick so the numbers and
+   the current hunk never scroll out of sight. */
+.diff-scroll { overflow-x: auto; }
 table.diff { width: 100%; border-collapse: collapse; font-size: var(--text-code); line-height: 1.5; }
-table.diff td { padding: 0 var(--sp-3) 0 0; vertical-align: top; }
+table.diff td { padding: 0 var(--sp-3) 0 0; vertical-align: top; height: 1.5em; }
 table.diff .dn {
   width: 3.4rem;
   min-width: 3.4rem;
   text-align: right;
   padding-left: var(--sp-3);
+  /* table.diff td pins the code to the top; the gutter centres instead */
+  vertical-align: middle;
 }
-table.diff .dc { white-space: pre-wrap; word-break: break-all; }
+table.diff .dn:first-child,
+tr.d-hunk td,
+.hunk-h { position: sticky; left: 0; }
+table.diff .dn:first-child { background: var(--raised); }
+.hunk-h { background: var(--emphasis); }
+table.diff .dc { white-space: pre; }
 tr.d-add td.dc, .d-add { background: var(--add-tint); }
 tr.d-del td.dc, .d-del { background: var(--del-tint); }
 tr.d-hunk td, .hunk-h, .sbs-h {
@@ -739,7 +748,6 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
     padding-left: var(--sp-2);
     padding-right: var(--sp-1);
   }
-  .file, .diff-scroll { overflow-x: auto; }
   table.diff.side { min-width: 42rem; }
 }
 

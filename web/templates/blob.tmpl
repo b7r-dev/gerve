@@ -29,9 +29,9 @@
     {{if .SourceURL}}<a href="{{.SourceURL}}">view source</a>{{end}}
     {{if .RenderURL}}<a href="{{.RenderURL}}">rendered view</a>{{end}}
   </div>
-  {{if .RenderURL}}<div class="codewrap">{{.Code}}</div>{{else}}<div class="md card">{{.Code}}</div>{{end}}
+  {{if .RenderURL}}{{.Code}}{{else}}<div class="md card">{{.Code}}</div>{{end}}
   {{else}}
-  <div class="codewrap">{{.Code}}</div>
+  {{.Code}}
   {{end}}
 {{end}}
 {{end}}

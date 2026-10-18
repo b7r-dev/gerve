@@ -217,8 +217,15 @@ func (rd *Renderer) PlainText(src []byte) template.HTML {
 	return template.HTML("<pre class=\"readme-plain\">" + template.HTMLEscapeString(string(src)) + "</pre>")
 }
 
-// Highlight renders source code with chroma, using line-number tables. ok is
-// false when no lexer matched the filename; callers fall back to PlainCode.
+// Highlight renders source code with chroma as one numbered row per line,
+// the same shape PlainCode uses. ok is false when no lexer matched the
+// filename; callers fall back to PlainCode.
+//
+// Chroma can put the gutter and the code in two independent <pre> columns
+// (LineNumbersInTable), which only line up for as long as both columns compute
+// exactly the same line box — one font substitution, zoom level, or rounding
+// difference and every number below the first drift lands beside the wrong
+// line. Emitting a row per line makes alignment structural instead.
 func (rd *Renderer) Highlight(content []byte, filename string) (out template.HTML, ok bool) {
 	if len(content) > maxHighlight {
 		return "", false
@@ -231,17 +238,52 @@ func (rd *Renderer) Highlight(content []byte, filename string) (out template.HTM
 	if err != nil {
 		return "", false
 	}
-	formatter := chromahtml.New(
-		chromahtml.WithClasses(true),
-		chromahtml.WithLineNumbers(true),
-		chromahtml.LineNumbersInTable(true),
-	)
+	formatter := chromahtml.New(chromahtml.WithClasses(true))
 	style := styles.Get("github")
 	var b bytes.Buffer
 	if err := formatter.Format(&b, style, it); err != nil {
 		return "", false
 	}
-	return template.HTML(b.String()), true
+
+	var sb strings.Builder
+	sb.WriteString(`<div class="plaincode chroma"><table>`)
+	for i, ln := range chromaLines(b.String()) {
+		fmt.Fprintf(&sb, `<tr><td class="ln">%d</td><td class="lt">%s</td></tr>`, i+1, ln)
+	}
+	sb.WriteString(`</table></div>`)
+	return template.HTML(sb.String()), true
+}
+
+const chromaLineOpen = `<span class="line">`
+
+// chromaLines splits chroma's per-line spans into one HTML fragment per source
+// line. Chroma closes its token spans at every newline, so snipping the line
+// wrapper leaves each fragment balanced on its own.
+func chromaLines(out string) []string {
+	body := out
+	if i := strings.Index(body, "<code>"); i >= 0 {
+		body = body[i+len("<code>"):]
+	}
+	if i := strings.LastIndex(body, "</code>"); i >= 0 {
+		body = body[:i]
+	}
+	parts := strings.Split(body, chromaLineOpen)
+	if len(parts) < 2 {
+		return nil
+	}
+	lines := make([]string, 0, len(parts)-1)
+	for _, p := range parts[1:] {
+		// chroma closes the line span *after* the newline, so the close tag
+		// comes off first; leaving the newline would add a second line box
+		p = strings.TrimSuffix(p, "</span>")
+		p = strings.TrimSuffix(p, "\n")
+		lines = append(lines, p)
+	}
+	// a trailing newline in the source yields one empty trailing line
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
 }
 
 // PlainCode renders escaped source with a line-number table, no highlighting.

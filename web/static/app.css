@@ -87,6 +87,11 @@
   --text-md: 1.0625rem;
   --text-lg: 1.375rem;
   --text-xl: 1.625rem;
+  /* code layer — rides the xs/2xs steps, but named because Plex Mono's large
+     x-height and wide glyphs make code read a size larger than the same px of
+     sans: wells sit a step *below* the prose they annotate, never beside it. */
+  --text-code: var(--text-xs);      /* 12px — wells, diffs, fenced blocks */
+  --text-code-sm: var(--text-2xs);  /* 11px — gutters, line numbers */
 
   /* space scale */
   --sp-1: 4px;
@@ -439,13 +444,17 @@ td.hash { white-space: nowrap; }
   text-align: right;
   padding: 0 var(--sp-2) 0 var(--sp-3);
   min-width: 3.2rem;
+  font-size: var(--text-code-sm);
+  /* gutter digits ride a step below the code, but must keep the code's line
+     box exactly — with a relative line-height the numbers drift off their lines */
+  line-height: calc(var(--text-code) * 1.5);
   user-select: none;
   vertical-align: top;
 }
 .lt { white-space: pre; padding: 0 var(--sp-3) 0 var(--sp-2); }
 .codewrap pre, .plaincode pre, .plaincode td, .codewrap td {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-code);
   line-height: 1.5;
 }
 
@@ -462,6 +471,8 @@ td.hash { white-space: nowrap; }
   text-align: right;
   padding: 0 0.5em;
   margin-right: 0.6em;
+  font-size: var(--text-code-sm);
+  line-height: calc(var(--text-code) * 1.5);
 }
 .chroma .hl { background: var(--pool-tint); display: block; width: 100%; }
 .chroma .x { color: var(--fg-3); }
@@ -547,7 +558,7 @@ html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: va
 .fhead .path { word-break: break-all; }
 .fhead .right { margin-left: auto; }
 
-table.diff { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+table.diff { width: 100%; border-collapse: collapse; font-size: var(--text-code); line-height: 1.5; }
 table.diff td { padding: 0 var(--sp-3) 0 0; vertical-align: top; }
 table.diff .dn {
   width: 3.4rem;
@@ -631,7 +642,7 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   border: 1px solid var(--border-1);
   border-radius: var(--radius-1);
   padding: 0.1em 0.35em;
-  font-size: 0.875em;
+  font-size: 0.85em;
   color: var(--pool-bright);
 }
 .md pre {
@@ -646,7 +657,8 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   border: none;
   background: none;
   padding: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-code);
+  line-height: 1.5;
   color: var(--fg-1);
 }
 .md blockquote {

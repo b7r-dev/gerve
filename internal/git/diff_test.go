@@ -87,7 +87,10 @@ func TestSideBySidePairing(t *testing.T) {
 	if len(h.Left) != len(h.Right) {
 		t.Fatalf("left/right length mismatch: %d vs %d", len(h.Left), len(h.Right))
 	}
-	type want struct{ lk, rk byte; ln, rn int }
+	type want struct {
+		lk, rk byte
+		ln, rn int
+	}
 	wantRows := []want{
 		{' ', ' ', 1, 1}, // context a
 		{'-', '+', 2, 2}, // b -> B

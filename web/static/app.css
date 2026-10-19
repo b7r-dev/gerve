@@ -144,6 +144,18 @@ html.light {
 
 * { box-sizing: border-box; }
 
+/* Grayscale antialiasing, deliberately. Subpixel (LCD) antialiasing renders a
+   glyph differently depending on its fractional x-offset, and gerve's tables sit
+   on fractional offsets (the content box starts at 97.5px and max-content
+   columns land on .06/.36 phases), so in light theme some columns came out
+   heavier than others — the last column of a markdown table was the giveaway.
+   Grayscale has no subpixel phase, so every column renders identically; dark
+   theme was already rendering this way. */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   margin: 0;
   background: var(--plane);

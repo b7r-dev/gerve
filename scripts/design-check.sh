@@ -3,7 +3,13 @@
 #   1. spacing audit: every component of every padding/margin/gap must be a
 #      --sp-* token, 0, auto, or a calc()/literal on the 4px scale (2px is the
 #      documented chip half-step).
-#   2. contrast audit: declared text/surface token pairs must meet WCAG AA
+#   2. type audit: every font-size (declared, or the size slot of a font
+#      shorthand) must be a --text-* token. Sizes are chosen from the scale,
+#      never derived from the surrounding text with em/%/calc.
+#   3. weight audit: every declared font-weight must name a weight an embedded
+#      face actually provides, so a rule never resolves to a face it did not
+#      ask for (500 in mono renders as 400, 700 in mono as 600).
+#   4. contrast audit: declared text/surface token pairs must meet WCAG AA
 #      (>= 4.5 body, >= 3.0 large/UI) in both themes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -45,6 +51,80 @@ if offenders:
         print(f"  OFF-SCALE {prop}: {value}   (component: {comp})")
 else:
     print("  all padding/margin/gap components on scale")
+
+# ---- type audit -------------------------------------------------------------
+
+# Sizes come from the scale: a step is picked by name, never computed from the
+# text around it (0.85em, calc(var(--text-sm) * 1.1), …). The one indirection
+# allowed is --text-code, which names the code step for what it is.
+bare = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+token = re.compile(r"^var\(--text-[a-z0-9]+\)$")
+declared = re.compile(r"font-size\s*:\s*([^;]+);")
+shorthand = re.compile(r"(?<![-a-z])font\s*:\s*([^;]+);")
+
+type_offenders = []
+for m in declared.finditer(bare):
+    value = m.group(1).strip()
+    if not token.match(value):
+        type_offenders.append(("font-size", value))
+for m in shorthand.finditer(bare):
+    parts = m.group(1).split()
+    # in `font: <weight> <size>/<line-height> <family>`, the size is the
+    # component carrying the slash, or the component naming a text token
+    size = next((p for p in parts if "/" in p), None)
+    size = size.split("/")[0] if size else next((p for p in parts if p.startswith("var(--text-")), None)
+    if size is None or not token.match(size):
+        type_offenders.append(("font", m.group(1).strip()))
+
+print("== type audit ==")
+if type_offenders:
+    fail = 1
+    for prop, value in type_offenders:
+        print(f"  OFF-SCALE {prop}: {value}   (must be var(--text-*))")
+else:
+    counts = {s: 0 for s in ("2xs", "xs", "sm", "base", "md", "lg", "xl")}
+    for m in list(declared.finditer(bare)) + list(shorthand.finditer(bare)):
+        for t in re.findall(r"var\(--text-([a-z0-9]+)\)", m.group(1)):
+            key = "2xs" if t == "code" else t  # --text-code names the 2xs step
+            counts[key] = counts.get(key, 0) + 1
+    print("  every font-size is a --text-* token")
+    print("  steps in use: " + " ".join(f"{k}={v}" for k, v in counts.items()))
+    missing = [k for k, v in counts.items() if v == 0]
+    if missing:
+        fail = 1
+        print(f"  UNUSED step(s): {', '.join(missing)} — a step with no job is dead weight")
+
+# ---- weight audit -----------------------------------------------------------
+
+# A weight no embedded face provides is answered with a different face than the
+# rule names: 500 in mono renders as 400 and 700 in mono renders as 600, so the
+# declaration lies about what the page looks like. The shipped set comes from
+# the @font-face blocks themselves, so adding a face widens what is allowed.
+faces = set()
+for m in re.finditer(r"@font-face\s*\{(.*?)\}", bare, re.S):
+    faces.update(re.findall(r"font-weight\s*:\s*(\d+)", m.group(1)))
+body = re.sub(r"@font-face\s*\{.*?\}", "", bare, flags=re.S)
+
+weight_offenders = []
+for m in re.finditer(r"font-weight\s*:\s*([^;]+);", body):
+    w = m.group(1).strip()
+    if w not in faces and w not in ("normal", "inherit"):
+        weight_offenders.append(("font-weight", w))
+for m in shorthand.finditer(body):
+    # a weight is only present in a font shorthand as a leading number/keyword
+    head = m.group(1).split("/")[0].split()
+    w = next((p for p in head if p.isdigit() or p in ("bold", "bolder", "lighter", "normal")), None)
+    if w and w.isdigit() and w not in faces:
+        weight_offenders.append(("font", m.group(1).strip()))
+
+print("== weight audit ==")
+print(f"  faces shipped: {', '.join(sorted(faces, key=int))}")
+if weight_offenders:
+    fail = 1
+    for prop, value in weight_offenders:
+        print(f"  UNSHIPPED {prop}: {value}   (no face at that weight)")
+else:
+    print("  every declared weight names a shipped face")
 
 # ---- contrast audit ---------------------------------------------------------
 

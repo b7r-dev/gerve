@@ -12,7 +12,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -163,11 +162,15 @@ func (rd *Renderer) AssetVersion(name string) string { return rd.assetHash[name]
 // VersionedCSS returns app.css with content-hashed font URLs.
 func (rd *Renderer) VersionedCSS() []byte { return rd.css }
 
-// Page renders a named page with the shared layout.
-func (rd *Renderer) Page(w io.Writer, name string, data any) {
-	if err := rd.pages[name].ExecuteTemplate(w, "layout", data); err != nil {
-		log.Printf("render %s: %v", name, err)
+// Page renders a named page with the shared layout, reporting failure to the
+// caller rather than logging it: whoever owns the response is the only party
+// that can still turn a broken render into a truthful status.
+func (rd *Renderer) Page(w io.Writer, name string, data any) error {
+	t, ok := rd.pages[name]
+	if !ok {
+		return fmt.Errorf("render: unknown page %q", name)
 	}
+	return t.ExecuteTemplate(w, "layout", data)
 }
 
 // Markdown renders markdown to safe HTML (raw HTML in source is escaped).

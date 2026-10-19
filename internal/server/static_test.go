@@ -19,16 +19,8 @@ func staticTestServer(t *testing.T) (*httptest.Server, *render.Renderer) {
 
 func getBody(t *testing.T, url string) (string, http.Header) {
 	t.Helper()
-	resp, err := http.Get(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b), resp.Header
+	_, hdr, body := doReq(t, url, nil)
+	return body, hdr
 }
 
 // TestAssetsAreContentVersioned pins the cache-busting contract: pages

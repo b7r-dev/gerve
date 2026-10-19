@@ -63,39 +63,63 @@
 
   // Addressable lines. Every code row carries id="L12", so the browser scrolls
   // to a line link by itself and :target tints it with no script at all. What
-  // CSS cannot express is the rest: a range (#L10-L20), and re-applying the
-  // highlight when the hash changes without a page load — which is what makes a
-  // second permalink click, or the back button, move it rather than do nothing.
-  var LINE_HASH = /^#L(\d+)(?:-L(\d+))?$/;
+  // CSS cannot express is the rest: ranges, re-applying the highlight when the
+  // hash changes without a page load (which is what makes a second permalink
+  // click, or the back button, move it rather than do nothing), and clicking a
+  // line number to select it.
+  //
+  // The selection class is "line-sel", deliberately not "hl": that name belongs
+  // to chroma's token namespace inside .chroma, where it means a highlighted
+  // source line and brings display: block. A row wearing it stops being a table
+  // row and its cells leave their columns.
+  var RANGE = /^L(\d+)(?:-L(\d+))?$/;
 
-  function lineRange() {
-    var m = LINE_HASH.exec(location.hash);
-    if (!m) return null;
-    var a = parseInt(m[1], 10);
-    var b = m[2] ? parseInt(m[2], 10) : a;
-    if (!(a > 0) || !(b > 0)) return null;
-    return [Math.min(a, b), Math.max(a, b)];
+  // Ranges may be comma-separated (#L1-L3,L9): a link that collects line
+  // references acquires them, so parsing yields a list rather than one span.
+  function lineRanges() {
+    var body = location.hash.replace(/^#/, "");
+    if (!body) return null;
+    var ranges = [];
+    body.split(",").forEach(function (part) {
+      var m = RANGE.exec(part.trim());
+      if (!m) return;
+      var a = parseInt(m[1], 10);
+      var b = m[2] ? parseInt(m[2], 10) : a;
+      if (!(a > 0) || !(b > 0)) return;
+      ranges.push([Math.min(a, b), Math.max(a, b)]);
+    });
+    return ranges.length ? ranges : null;
+  }
+
+  function inRanges(ranges, n) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (n >= ranges[i][0] && n <= ranges[i][1]) return true;
+    }
+    return false;
   }
 
   function highlightLines() {
-    document.querySelectorAll(".plaincode tr.hl").forEach(function (tr) {
-      tr.classList.remove("hl");
+    document.querySelectorAll(".plaincode tr.line-sel").forEach(function (tr) {
+      tr.classList.remove("line-sel");
     });
-    var range = lineRange();
-    if (!range) return;
+    var ranges = lineRanges();
+    if (!ranges) return;
+    // Walk the rows rather than the numbers: a hand-edited link can name any
+    // number at all (#L1-L2000000000), and stepping through that would freeze
+    // the tab. The rows bound the work instead.
+    var rows = document.querySelectorAll(".plaincode tr");
     var first = null;
-    var lines = 0;
-    for (var n = range[0]; n <= range[1]; n++) {
-      var tr = document.getElementById("L" + n);
-      if (!tr) continue;
-      tr.classList.add("hl");
-      if (!first) first = tr;
-      lines++;
+    for (var i = 0; i < rows.length; i++) {
+      var n = parseInt((rows[i].id || "").slice(1), 10);
+      if (!(n > 0) || !inRanges(ranges, n)) continue;
+      rows[i].classList.add("line-sel");
+      if (!first) first = rows[i];
     }
-    // A range has no single element for the browser to scroll to, so the first
-    // row it covers is brought into view; a lone line was already scrolled to
-    // by :target targeting it, and re-scrolling would only make the page jump.
-    if (first && lines > 1 && first.scrollIntoView) {
+    // A lone line is an element the browser has already scrolled to, honouring
+    // scroll-padding-top; a range is not an element at all, so bring its first
+    // row into view — centred, which is what clears the sticky header there.
+    var spansLines = ranges.some(function (r) { return r[1] > r[0]; });
+    if (first && spansLines && first.scrollIntoView) {
       first.scrollIntoView({ block: "center" });
     }
   }

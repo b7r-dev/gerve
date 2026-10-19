@@ -169,6 +169,11 @@ html.light {
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* A line link scrolls its target to the top of the viewport, which is where
+     the sticky header sits — the linked line would land underneath it. Padding
+     the scrollport moves every fragment landing clear: the 48px capsule plus
+     its 8px offset, and a breath to spare. */
+  scroll-padding-top: calc(var(--sp-7) + var(--sp-4));
 }
 
 body {
@@ -522,10 +527,14 @@ td.hash { white-space: nowrap; }
 
 /* A line is addressable: each row carries id="L12", so the browser scrolls to a
    line link natively and :target tints it before any script runs. The script
-   extends the same tint to ranges (#L10-L20) by marking every row involved, so
-   both paths land on one rule rather than two shades of highlight. */
+   extends the same tint to ranges by marking every row involved, so both paths
+   land on one rule rather than two shades of highlight.
+
+   The class is line-sel rather than hl on purpose: hl belongs to chroma's token
+   namespace, where it marks a highlighted source line and carries display:
+   block — on a row that would take the cells out of their columns. */
 .plaincode tr:target td,
-.plaincode tr.hl td { background: var(--row-hl); }
+.plaincode tr.line-sel td { background: var(--row-hl, var(--sunken)); }
 
 /* Only with scripting: a pointer over the gutter promises an action, and
    without the script there is none to take. */

@@ -81,6 +81,16 @@ func TestPlainCodeRowsAreAddressable(t *testing.T) {
 	if n := strings.Count(out, "<tr id="); n != 3 {
 		t.Errorf("rows = %d, want 3 (the blank line is a line too)", n)
 	}
+
+	// A file ending in a blank line ends in an addressable row as well: the
+	// anchor has to exist for the line that has no text.
+	out = string(rd.PlainCode([]byte("a\nb\n\n")))
+	if n := strings.Count(out, "<tr id="); n != 3 {
+		t.Errorf("trailing blank line: rows = %d, want 3\n%s", n, out)
+	}
+	if !strings.Contains(out, `<tr id="L3"><td class="ln">3</td><td class="lt"></td></tr>`) {
+		t.Errorf("trailing blank line is not addressable:\n%s", out)
+	}
 }
 
 func TestMarkdownRewriteLinks(t *testing.T) {

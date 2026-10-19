@@ -30,10 +30,7 @@ var nonTokenClasses = map[string]bool{
 
 func styledChromaClasses(t *testing.T) map[string]bool {
 	t.Helper()
-	css, err := fs.ReadFile(web.Static(), "static/app.css")
-	if err != nil {
-		t.Fatalf("read app.css: %v", err)
-	}
+	css := appCSS(t)
 	out := map[string]bool{}
 	for _, m := range chromaRuleRe.FindAllSubmatch(css, -1) {
 		out[string(m[1])] = true
@@ -42,6 +39,53 @@ func styledChromaClasses(t *testing.T) map[string]bool {
 		t.Fatalf("only %d .chroma rules found — did app.css move?", len(out))
 	}
 	return out
+}
+
+// appCSS reads the stylesheet the binary embeds.
+func appCSS(t *testing.T) []byte {
+	t.Helper()
+	css, err := fs.ReadFile(web.Static(), "static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	return css
+}
+
+// ruleRe matches a rule whose body has no nested braces, which is every rule
+// gerve writes; the blocks that do nest (@media, @font-face) are skipped here
+// and their inner rules matched on their own.
+var (
+	ruleRe       = regexp.MustCompile(`(?s)([^{}]+)\{([^{}]*)\}`)
+	classSelRe   = regexp.MustCompile(`\.([a-zA-Z][\w-]*)`)
+	reCSSComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+)
+
+// Chroma owns a namespace of class names — its token classes plus structural
+// wrappers like .hl and .cl. Styling one of those names outside .chroma quietly
+// changes how code renders, because the element in question is inside .chroma
+// too: a `tr.hl` selector also matched chroma's highlighted-line rows, and the
+// display: block that comes with that name collapsed those rows out of their
+// columns. Keeping our selectors out of the namespace is cheaper than noticing.
+func TestOurClassesStayOutOfChromasNamespace(t *testing.T) {
+	// Comments first: prose in this stylesheet names files ("design-check.sh")
+	// and those dotted words would otherwise be read as class selectors.
+	css := reCSSComment.ReplaceAllString(string(appCSS(t)), "")
+	chroma := styledChromaClasses(t)
+
+	for _, m := range ruleRe.FindAllStringSubmatch(css, -1) {
+		selector := strings.TrimSpace(m[1])
+		if selector == "" || strings.HasPrefix(selector, "@") {
+			continue
+		}
+		if strings.Contains(selector, ".chroma") {
+			continue // the intended home for these names
+		}
+		for _, c := range classSelRe.FindAllStringSubmatch(selector, -1) {
+			if chroma[c[1]] {
+				t.Errorf("rule %q styles chroma's .%s outside .chroma — a code element wearing that class picks up chroma's rules too", selector, c[1])
+			}
+		}
+	}
 }
 
 func emittedClasses(html string) []string {

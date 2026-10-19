@@ -73,4 +73,7 @@ func TestBlameRowsAreAddressable(t *testing.T) {
 			t.Errorf("blame page missing anchor %s", want)
 		}
 	}
+	if n := strings.Count(body, `<tr id="L`); n != 3 {
+		t.Errorf("blame rows = %d, want 3 (one per blamed line)", n)
+	}
 }

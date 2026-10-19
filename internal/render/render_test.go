@@ -64,6 +64,25 @@ func TestPagesRenderNonEmpty(t *testing.T) {
 	}
 }
 
+// PlainCode carries the same anchors as Highlight: a line of plain text must be
+// as addressable as a line of syntax-highlighted code, blank lines included — a
+// link to a blank line is still a link to a line.
+func TestPlainCodeRowsAreAddressable(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatalf("render.New: %v", err)
+	}
+	out := string(rd.PlainCode([]byte("first\n\nthird\n")))
+	for _, want := range []string{`<tr id="L1">`, `<tr id="L2">`, `<tr id="L3">`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plain code missing %s:\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, "<tr id="); n != 3 {
+		t.Errorf("rows = %d, want 3 (the blank line is a line too)", n)
+	}
+}
+
 func TestMarkdownRewriteLinks(t *testing.T) {
 	rd, err := New()
 	if err != nil {

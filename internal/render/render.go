@@ -276,10 +276,20 @@ func (rd *Renderer) Highlight(content []byte, filename string) (out template.HTM
 	var sb strings.Builder
 	sb.WriteString(`<div class="plaincode chroma"><table>`)
 	for i, ln := range chromaLines(b.String()) {
-		fmt.Fprintf(&sb, `<tr><td class="ln">%d</td><td class="lt">%s</td></tr>`, i+1, ln)
+		codeRow(&sb, i+1, ln)
 	}
 	sb.WriteString(`</table></div>`)
 	return template.HTML(sb.String()), true
+}
+
+// codeRow writes one source line as a code-table row. The row carries an id so
+// that a line is addressable as #L12: links, review comments, and search
+// results can all point at a line, and the browser scrolls to it natively
+// before any script runs. Line numbers are unique within a file, so the ids
+// are too — which is what keeps the anchors valid without the server ever
+// having to parse a fragment.
+func codeRow(b *strings.Builder, n int, content string) {
+	fmt.Fprintf(b, `<tr id="L%d"><td class="ln">%d</td><td class="lt">%s</td></tr>`, n, n, content)
 }
 
 const chromaLineOpen = `<span class="line">`
@@ -325,7 +335,7 @@ func (rd *Renderer) PlainCode(content []byte) template.HTML {
 	var b strings.Builder
 	b.WriteString(`<div class="plaincode"><table>`)
 	for i, ln := range lines {
-		fmt.Fprintf(&b, `<tr><td class="ln">%d</td><td class="lt">%s</td></tr>`, i+1, template.HTMLEscapeString(ln))
+		codeRow(&b, i+1, template.HTMLEscapeString(ln))
 	}
 	b.WriteString(`</table></div>`)
 	return template.HTML(b.String())

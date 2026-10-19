@@ -77,6 +77,13 @@
   --del-tint: rgba(206, 129, 111, 0.11);
   --ion-tint: rgba(69, 184, 226, 0.10);
   --pool-tint: rgba(95, 151, 168, 0.12);
+  /* An opaque stand-in for pool-tint over sunken, for highlighting a whole
+     code row. The gutter cell is sticky, so it cannot be transparent — that
+     opacity is what stops code scrolling underneath showing through the
+     digits — and a transparent tint on the cells beside an opaque gutter would
+     read as two different hues on one row. Values are the pool-tint blend,
+     baked. */
+  --row-hl: #141d20;
 
   --lift: 0 2px 0 rgba(0, 0, 0, 0.30);
 
@@ -144,6 +151,7 @@ html.light {
   --del-tint: rgba(163, 72, 51, 0.10);
   --ion-tint: rgba(8, 108, 142, 0.08);
   --pool-tint: rgba(53, 112, 127, 0.09);
+  --row-hl: #dcdfdb; /* see the dark value: pool-tint over sunken, baked */
 
   --lift: 0 2px 0 rgba(29, 32, 34, 0.06);
 }
@@ -511,6 +519,17 @@ td.hash { white-space: nowrap; }
    as the diff viewer, so a line reads identically in both. Opaque background
    (see .ln/.dn) so nothing bleeds through the digits. */
 .plaincode td.ln { position: sticky; left: 0; background: var(--sunken); }
+
+/* A line is addressable: each row carries id="L12", so the browser scrolls to a
+   line link natively and :target tints it before any script runs. The script
+   extends the same tint to ranges (#L10-L20) by marking every row involved, so
+   both paths land on one rule rather than two shades of highlight. */
+.plaincode tr:target td,
+.plaincode tr.hl td { background: var(--row-hl); }
+
+/* Only with scripting: a pointer over the gutter promises an action, and
+   without the script there is none to take. */
+.js .plaincode td.ln { cursor: pointer; }
 
 /* A header that labels a code well. Blame groups and diff files wear the same
    header; they differ only in how they meet the well beneath them. */

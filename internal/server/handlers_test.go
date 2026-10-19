@@ -57,3 +57,20 @@ func TestRepoRelative(t *testing.T) {
 		}
 	}
 }
+
+// TestBlameRowsAreAddressable: blame groups are code rows like any other, so a
+// blamed line can be linked to as well. The anchor is the file's line number,
+// which is what a reader of blame means by "line 12" whichever commit owns it —
+// the group header above it already says whose line it is.
+func TestBlameRowsAreAddressable(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{"file.txt": "a\nb\nc\n"})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, ts.URL+"/blame/HEAD/file.txt")
+	for _, want := range []string{`id="L1"`, `id="L2"`, `id="L3"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("blame page missing anchor %s", want)
+		}
+	}
+}

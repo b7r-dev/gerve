@@ -136,7 +136,7 @@ func TestHighlightEmitsOneRowPerLine(t *testing.T) {
 	body := string(out)
 
 	wantLines := len(strings.Split(strings.TrimSuffix(src, "\n"), "\n"))
-	if got := strings.Count(body, "<tr>"); got != wantLines {
+	if got := strings.Count(body, "<tr id="); got != wantLines {
 		t.Errorf("rows = %d, want %d (one per source line)", got, wantLines)
 	}
 	if strings.Contains(body, `class="line"`) {
@@ -146,22 +146,28 @@ func TestHighlightEmitsOneRowPerLine(t *testing.T) {
 		t.Error("the two-column line-number table is still present")
 	}
 
-	rows := regexp.MustCompile(`(?s)<tr><td class="ln">(\d+)</td><td class="lt">(.*?)</td></tr>`).FindAllStringSubmatch(body, -1)
+	// Each row is addressable, and the anchor must agree with the gutter number:
+	// every line link depends on id="L12" being the line whose number says 12.
+	rows := regexp.MustCompile(`(?s)<tr id="L(\d+)"><td class="ln">(\d+)</td><td class="lt">(.*?)</td></tr>`).FindAllStringSubmatch(body, -1)
 	if len(rows) != wantLines {
 		t.Fatalf("parsed %d rows, want %d", len(rows), wantLines)
 	}
 	for i, m := range rows {
-		if m[1] != strconv.Itoa(i+1) {
-			t.Fatalf("row %d numbered %q, want %d", i, m[1], i+1)
+		want := strconv.Itoa(i + 1)
+		if m[1] != want {
+			t.Fatalf("row %d carries id L%s, want L%s", i, m[1], want)
 		}
-		if open, closed := strings.Count(m[2], "<span"), strings.Count(m[2], "</span>"); open != closed {
+		if m[2] != want {
+			t.Fatalf("row %d numbered %q, want %s", i, m[2], want)
+		}
+		if open, closed := strings.Count(m[3], "<span"), strings.Count(m[3], "</span>"); open != closed {
 			t.Errorf("row %d spans unbalanced: %d open, %d close", i+1, open, closed)
 		}
 		// A newline left at the end of a cell adds a second line box, so filled
 		// rows would stand taller than blank ones. Whatever chroma does with its
 		// own whitespace tokens, no cell may end in a bare newline.
-		if strings.HasSuffix(m[2], "\n") {
-			t.Errorf("row %d cell ends with a raw newline: %q", i+1, m[2])
+		if strings.HasSuffix(m[3], "\n") {
+			t.Errorf("row %d cell ends with a raw newline: %q", i+1, m[3])
 		}
 	}
 }

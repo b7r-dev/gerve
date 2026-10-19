@@ -15,7 +15,7 @@
       {{if .Boundary}}<span class="badge">boundary</span>{{end}}
     </div>
     <div class="plaincode"><table>
-      {{range .Lines}}<tr><td class="ln">{{.Num}}</td><td class="lt">{{.Text}}</td></tr>{{end}}
+      {{range .Lines}}<tr id="L{{.Num}}"><td class="ln">{{.Num}}</td><td class="lt">{{.Text}}</td></tr>{{end}}
     </table></div>
   </div>
   {{end}}

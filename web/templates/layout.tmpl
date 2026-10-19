@@ -26,7 +26,7 @@ if(t==="light"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme
     </form>
     <a class="searchlink" href="/search/{{urlPathEscape .Ref}}">search</a>
     <form class="refjump" action="/refs" method="get">
-      <select id="refswitch" data-base="{{.Route}}" data-path="{{.Path}}" aria-label="switch ref">
+      <select id="refswitch" data-base="{{.Route}}" data-path="{{.Path}}" data-query="{{.Query}}" data-scope="{{.Scope}}" aria-label="switch ref">
         <option value="{{.Ref}}" selected>{{.Ref}}</option>
         {{range .Refs}}<option value="{{.Name}}">{{.Kind}}: {{.Name}}</option>{{end}}
       </select>

@@ -4,11 +4,11 @@
 <form class="card search" action="/search/{{urlPathEscape .Ref}}" method="get">
   <label class="field">
     <span class="muted">find</span>
-    <input type="search" name="q" value="{{.Query}}" autocomplete="off" spellcheck="false" autofocus>
+    <input type="search" name="q" value="{{.Query}}" maxlength="200" autocomplete="off" spellcheck="false" autofocus>
   </label>
   <label class="field">
     <span class="muted">in</span>
-    <input type="text" name="path" value="{{.Scope}}" placeholder="the whole repository" autocomplete="off" spellcheck="false">
+    <input type="text" name="path" value="{{.Scope}}" maxlength="400" placeholder="the whole repository" autocomplete="off" spellcheck="false">
   </label>
   <button type="submit">search</button>
 </form>
@@ -17,6 +17,7 @@
   <span class="strong">{{.Result.Count}} {{if eq .Result.Count 1}}match{{else}}matches{{end}}</span>
   <span class="muted">in {{len .Result.Groups}} {{if eq (len .Result.Groups) 1}}file{{else}}files{{end}} — {{if .Scope}}under <code>{{.Scope}}</code>{{else}}the whole repository{{end}}, at <code>{{.Ref}}</code></span>
   {{if .Result.Capped}}<span class="chip chip-warn">stopped at {{.Limit}} — narrow the scope or refine the query</span>{{end}}
+  {{if .Result.Skipped}}<span class="chip chip-warn">{{.Result.Skipped}} records too long to show</span>{{end}}
   {{if .Result.Stopped}}<span class="chip chip-warn">stopped after {{.Timeout}}s — narrow the scope</span>{{end}}
 </div>
 {{if not .Result.Groups}}
@@ -30,10 +31,11 @@
   <div class="fhead">
     <code class="path">{{.Path}}</code>
     {{if .Change}}<span class="badge b-{{.Change}}">{{.Change}}</span>{{end}}
+    {{if .More}}<span class="chip">more in this file</span>{{end}}
     <a class="right" href="{{urlFor "blob" $.Ref .Path}}#L{{(index .Matches 0).Line}}">open file &rarr;</a>
   </div>
   <div class="plaincode"><table>
-    {{range .Matches}}<tr><td class="ln">{{.Line}}</td><td class="lt hit-text">{{hit .Text $.Query}}</td></tr>{{end}}
+    {{range .Matches}}<tr><td class="ln"><a href="{{urlFor "blob" $.Ref .Path}}#L{{.Line}}">{{.Line}}</a></td><td class="lt hit-text">{{hit .Text $.Query}}</td></tr>{{end}}
   </table></div>
 </div>
 {{end}}

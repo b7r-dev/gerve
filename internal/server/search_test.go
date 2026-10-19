@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -67,8 +69,15 @@ func TestSearchReadsCommittedBytesForModifiedFiles(t *testing.T) {
 	if !strings.Contains(empty, "No matches") {
 		t.Error("search found worktree-only content in a tracked file")
 	}
-	// And the file view agrees: it renders the committed bytes too.
+	// The property the whole design turns on, asserted rather than assumed: the
+	// line the result names is the line the file view highlights.
+	if !strings.Contains(body, `href="/blob/HEAD/file.txt#L2"`) {
+		t.Errorf("the result does not name line 2:\n%.600s", body)
+	}
 	blob, _ := getBody(t, ts.URL+"/blob/HEAD/file.txt")
+	if !strings.Contains(blob, `id="L2"`) {
+		t.Error("the file view has no anchor for the line the result names")
+	}
 	if !strings.Contains(blob, "needle") {
 		t.Error("the file view does not show the committed line the search found")
 	}
@@ -96,14 +105,17 @@ func TestSearchMarksMatchesThatAreNotCommitted(t *testing.T) {
 // must then actually find it.
 func TestSearchScopedEmptyStateOffersTheWholeRepository(t *testing.T) {
 	dir := initTestRepo(t)
-	commitFiles(t, dir, "one", map[string]string{"sub/b.txt": "deep-needle\n"})
+	commitFiles(t, dir, "one", map[string]string{
+		"sub/b.txt":   "deep-needle\n",
+		"other/c.txt": "unrelated\n",
+	})
 	ts, _ := newTestServer(t, dir)
 
-	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "deep-needle", "internal"))
+	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "deep-needle", "other"))
 	if !strings.Contains(body, "No matches") {
 		t.Fatalf("a scoped search that found nothing did not say so:\n%.400s", body)
 	}
-	if !strings.Contains(body, "under <code>internal</code>") {
+	if !strings.Contains(body, "under <code>other</code>") {
 		t.Error("the empty state does not state the scope it searched")
 	}
 	want := `href="/search/HEAD?q=deep-needle"`
@@ -159,13 +171,79 @@ func TestSearchEscapesQueryAndContent(t *testing.T) {
 	}
 }
 
-func TestSearchCapsAndSaysSo(t *testing.T) {
+// TestSearchScopeCanNameAFile: a file is a pathspec like any other, so "search
+// in this file" costs nothing.
+func TestSearchScopeCanNameAFile(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{
+		"a.txt": "needle in a\n",
+		"b.txt": "needle in b\n",
+	})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "needle", "b.txt"))
+	if !strings.Contains(body, "1 match") {
+		t.Errorf("scoping to a file did not narrow the search:\n%.400s", body)
+	}
+	if !strings.Contains(body, `<em class="hit">needle</em> in b`) {
+		t.Errorf("the scoped file's match is missing:\n%.400s", body)
+	}
+	if strings.Contains(body, "in a") {
+		t.Error("a file scope still returned another file's match")
+	}
+}
+
+// TestSearchIgnoresAScopeThatNamesNothing: a glob would mean a pathspec to one
+// pass and a literal prefix to the other, so a scope that is not a real path is
+// dropped — and the page says which scope it used, so the widening is visible.
+func TestSearchIgnoresAScopeThatNamesNothing(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{"a.txt": "needle\n"})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "needle", "*.txt"))
+	if !strings.Contains(body, "1 match") {
+		t.Errorf("a glob scope did not fall back to the repository:\n%.400s", body)
+	}
+	if !strings.Contains(body, "the whole repository") {
+		t.Error("the page does not say it searched the whole repository")
+	}
+}
+
+func TestSearchCapsPerFileAndSaysSo(t *testing.T) {
 	dir := initTestRepo(t)
 	var b strings.Builder
 	for i := 0; i < 250; i++ {
 		b.WriteString("needle here\n")
 	}
 	commitFiles(t, dir, "one", map[string]string{"many.txt": b.String()})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "needle", ""))
+	// One generated file must not consume the whole budget: it contributes the
+	// per-file cap and says there is more, leaving the rest for other files.
+	if !strings.Contains(body, "20 matches") {
+		t.Errorf("a dense file was not capped per file:\n%.400s", body)
+	}
+	if !strings.Contains(body, "more in this file") {
+		t.Error("a file with matches beyond the cap does not say so")
+	}
+}
+
+// TestSearchCapsInTotalAndSaysSo: with the budget spread across many files, the
+// total cap is reached and the page says the list is partial rather than
+// presenting a prefix as everything.
+func TestSearchCapsInTotalAndSaysSo(t *testing.T) {
+	dir := initTestRepo(t)
+	files := map[string]string{}
+	for i := 0; i < 15; i++ {
+		var b strings.Builder
+		for j := 0; j < 20; j++ {
+			b.WriteString("needle here\n")
+		}
+		files[fmt.Sprintf("f%02d.txt", i)] = b.String()
+	}
+	commitFiles(t, dir, "one", files)
 	ts, _ := newTestServer(t, dir)
 
 	body, _ := getBody(t, searchURL(ts.URL, "HEAD", "needle", ""))
@@ -192,7 +270,10 @@ func TestSearchUnknownRefIs404(t *testing.T) {
 	commitFiles(t, dir, "one", map[string]string{"a.txt": "alpha\n"})
 	ts, _ := newTestServer(t, dir)
 
-	body, _ := getBody(t, ts.URL+"/search/nope?q=x")
+	status, _, body := doReq(t, ts.URL+"/search/nope?q=x", nil)
+	if status != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", status)
+	}
 	if !strings.Contains(body, "unknown ref") {
 		t.Errorf("expected an unknown-ref page, got:\n%.200s", body)
 	}

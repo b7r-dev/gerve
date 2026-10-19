@@ -345,9 +345,15 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
-	query := q.Get("q")
+	// Trimmed once, here: the search would trim it anyway, and leaving the
+	// untrimmed value to be displayed would silently disable the match
+	// highlight (which looks for the query it was given, in the text).
+	query := strings.TrimSpace(q.Get("q"))
 	scope, ok := validQueryParamPath(q.Get("path"))
-	if !ok {
+	if !ok || !s.repo.PathExists(r.Context(), hash, scope) {
+		// A scope that names nothing — a typo, a glob, a path from another ref —
+		// is dropped, and the results page says which scope it actually used, so
+		// the widening is visible rather than silent.
 		scope = ""
 	}
 
@@ -510,6 +516,11 @@ func parentDir(p string) string {
 func validQueryParamPath(p string) (string, bool) {
 	if p == "" {
 		return "", true
+	}
+	// A control character in a path is not a path: it would reach git's argv and
+	// fail there, turning a bad URL into a 500 instead of a page.
+	if strings.ContainsFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		return "", false
 	}
 	for _, seg := range strings.Split(p, "/") {
 		switch seg {

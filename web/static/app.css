@@ -833,6 +833,11 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   background: var(--row-hl);
   border-radius: var(--radius-1);
 }
+/* Every match's line number is a link to that line in the file view, so a
+   result is reachable from its own row and not only from the file header. It
+   wears the gutter's colour until it is pointed at. */
+.plaincode td.ln a { color: inherit; }
+.plaincode td.ln a:hover { color: var(--ion); }
 
 /* errors ---------------------------------------------------------------------------- */
 

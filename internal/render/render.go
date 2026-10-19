@@ -48,16 +48,17 @@ type Renderer struct {
 // New parses templates and prepares markdown + chroma CSS.
 func New() (*Renderer, error) {
 	funcs := template.FuncMap{
-		"short":         shortHash,
-		"timeago":       timeago,
-		"shortdate":     func(t time.Time) string { return t.Format("2006-01-02") },
-		"sizefmt":       humanBytes,
-		"urlFor":        URLFor,
-		"joinPath":      joinPath,
-		"urlPathEscape": url.PathEscape,
-		"kindClass":     kindClass,
-		"initial":       initial,
-		"hit":           emphasiseMatch,
+		"short":          shortHash,
+		"timeago":        timeago,
+		"shortdate":      func(t time.Time) string { return t.Format("2006-01-02") },
+		"sizefmt":        humanBytes,
+		"urlFor":         URLFor,
+		"joinPath":       joinPath,
+		"urlPathEscape":  url.PathEscape,
+		"urlQueryEscape": url.QueryEscape,
+		"kindClass":      kindClass,
+		"initial":        initial,
+		"hit":            emphasiseMatch,
 	}
 
 	hashes, err := hashStatic()

@@ -18,7 +18,10 @@
     });
   }
 
-  // Ref switcher: jump to the same path on another ref.
+  // Ref switcher: jump to the same path on another ref. The search results page
+  // is scoped by a query and a path that live in the query string rather than
+  // the URL path, so they ride along — otherwise switching refs there would
+  // silently drop the search and land on an empty form.
   var sel = document.getElementById("refswitch");
   if (sel) {
     sel.addEventListener("change", function () {
@@ -27,9 +30,36 @@
       var ps = path
         ? "/" + path.split("/").map(encodeURIComponent).join("/")
         : "";
-      location.href = "/" + base + "/" + encodeURIComponent(sel.value) + ps;
+      var extra = "";
+      var q = sel.getAttribute("data-query") || "";
+      if (q) {
+        extra = "?q=" + encodeURIComponent(q);
+        var scope = sel.getAttribute("data-scope") || "";
+        if (scope) extra += "&path=" + encodeURIComponent(scope);
+      }
+      location.href = "/" + base + "/" + encodeURIComponent(sel.value) + ps + extra;
     });
   }
+
+  // "/" focuses the search box — the one shortcut every tool of this kind has —
+  // or opens the search page where the box is not rendered, which is every width
+  // below the one that has room for it.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    var box = document.querySelector(".searchbox input[name=q]");
+    if (box && box.getBoundingClientRect().width > 0) {
+      e.preventDefault();
+      box.focus();
+      return;
+    }
+    var link = document.querySelector(".searchlink");
+    if (link) {
+      e.preventDefault();
+      location.href = link.getAttribute("href");
+    }
+  });
 
   // Copy buttons.
   document.querySelectorAll("[data-copy]").forEach(function (b) {

@@ -1,9 +1,13 @@
 package git
 
 import (
+	"bufio"
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -266,6 +270,29 @@ func TestSearchDeadlineReportsPartial(t *testing.T) {
 	}
 }
 
+// TestGrepStreamDeadlineMidStream puts the cancellation in the middle of the
+// stream rather than before it: the reader has to stop when the deadline
+// arrives, not wait for output that is no longer coming.
+func TestGrepStreamDeadlineMidStream(t *testing.T) {
+	r, _ := searchFixture(t)
+	sha := head(t, r)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	got := 0
+	_, err := r.grepStream(ctx, []string{"grep", "-z", "-n", "-I", "-F", "-e", "needle", sha}, sha+":", func(string, int, string) bool {
+		got++
+		cancel() // as a deadline does: mid-stream, with matches already read
+		return true
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	if got == 0 {
+		t.Error("no records were read before the cancellation")
+	}
+}
+
 func TestSearchUnknownRefIsAnError(t *testing.T) {
 	r, _ := searchFixture(t)
 
@@ -274,35 +301,109 @@ func TestSearchUnknownRefIsAnError(t *testing.T) {
 	}
 }
 
-func TestGrepRecordRejectsMalformedRecords(t *testing.T) {
-	cases := []struct {
-		name   string
-		rec    string
-		prefix string
-		ok     bool
-	}{
-		{"well formed", "HEAD:a.go\x0012\x00text", "HEAD:", true},
-		{"no second separator", "HEAD:a.go\x0012", "HEAD:", false},
-		{"no separator at all", "HEAD:a.go:12:text", "HEAD:", false},
-		{"line not a number", "HEAD:a.go\x00x\x00text", "HEAD:", false},
-		{"line zero", "HEAD:a.go\x000\x00text", "HEAD:", false},
-		{"no prefix to strip", "a.go\x003\x00text", "HEAD:", true},
+// TestGrepReaderReadsFieldsNotLines is the reason the reader exists in this
+// shape. Records are "path NUL line NUL text newline", and only the NUL
+// boundaries are trustworthy: a path may contain a newline (the old line-based
+// reader produced a phantom result pointing at a file that did not exist), and a
+// field may be longer than any buffer worth allocating (one 5 MB minified line
+// used to fail the whole search).
+func TestGrepReaderReadsFieldsNotLines(t *testing.T) {
+	stream := "weird\nname.txt\x0012\x00text here\nplain.txt\x003\x00more text\n"
+	g := &grepReader{rd: bufio.NewReader(strings.NewReader(stream))}
+
+	read := func() (string, int, string, bool) {
+		path, pathOK, err := g.field(0)
+		if err != nil {
+			t.Fatalf("path field: %v", err)
+		}
+		num, numOK, err := g.field(0)
+		if err != nil {
+			t.Fatalf("line field: %v", err)
+		}
+		text, textOK, err := g.field('\n')
+		if err != nil {
+			t.Fatalf("text field: %v", err)
+		}
+		n, convErr := strconv.Atoi(string(num))
+		if convErr != nil {
+			t.Fatalf("line field %q is not a number", num)
+		}
+		return string(path), n, string(text), pathOK && numOK && textOK
 	}
-	for _, c := range cases {
-		path, line, text, ok := grepRecord([]byte(c.rec), c.prefix)
-		if ok != c.ok {
-			t.Errorf("%s: ok = %v, want %v", c.name, ok, c.ok)
-			continue
-		}
-		if !ok {
-			continue
-		}
-		if strings.HasPrefix(path, c.prefix) {
-			t.Errorf("%s: prefix %q was not stripped from %q", c.name, c.prefix, path)
-		}
-		if line <= 0 || text == "" {
-			t.Errorf("%s: line = %d, text = %q", c.name, line, text)
-		}
+
+	path, line, text, ok := read()
+	if !ok || path != "weird\nname.txt" || line != 12 || text != "text here" {
+		t.Errorf("first record read as %q %d %q (ok=%v)", path, line, text, ok)
+	}
+	path, line, text, ok = read()
+	if !ok || path != "plain.txt" || line != 3 || text != "more text" {
+		t.Errorf("second record read as %q %d %q (ok=%v)", path, line, text, ok)
+	}
+	if _, _, err := g.field(0); err != io.EOF {
+		t.Errorf("end of stream = %v, want io.EOF", err)
+	}
+}
+
+// TestGrepReaderSkipsAnOverlongField: a field too long for the buffer is dropped
+// whole and the stream resynchronises, so one enormous generated line costs its
+// own record and nothing else.
+func TestGrepReaderSkipsAnOverlongField(t *testing.T) {
+	huge := strings.Repeat("x", grepFieldSize+1024)
+	stream := "a.txt\x001\x00" + huge + "\nb.txt\x002\x00fine\n"
+	g := &grepReader{rd: bufio.NewReaderSize(strings.NewReader(stream), grepFieldSize)}
+
+	path, _, err := g.field(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := g.field(0); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := g.field('\n'); ok || err != nil {
+		t.Errorf("overlong text field: ok=%v err=%v, want ok=false err=nil", ok, err)
+	}
+
+	path, _, err = g.field(0)
+	if err != nil {
+		t.Fatalf("stream did not resynchronise: %v", err)
+	}
+	if string(path) != "b.txt" {
+		t.Errorf("next record = %q, want b.txt", path)
+	}
+}
+
+// TestSearchSurvivesAPathWithANewline: the same case end to end, because a path
+// containing a newline used to be read as two ordinary records — one of them a
+// phantom file, linking to a page that does not exist.
+func TestSearchSurvivesAPathWithANewline(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) { gitOut(t, dir, args...) }
+	run("init", "-q", "-b", "main")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+	name := "weird\nname.txt"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("needle here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "-A")
+	run("commit", "-q", "-m", "one")
+
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Search(context.Background(), head(t, r), true, "needle", "", SearchLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Count != 1 {
+		t.Fatalf("matches = %d, want 1: %+v", res.Count, res.Groups)
+	}
+	if got := res.Groups[0].Path; got != name {
+		t.Errorf("path = %q, want %q", got, name)
 	}
 }
 

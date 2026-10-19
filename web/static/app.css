@@ -144,6 +144,17 @@ html.light {
 
 * { box-sizing: border-box; }
 
+/* Opt out of WebKit's text autosizing (font boosting), which iOS applies to
+   blocks it judges too small for a phone. For tables WebKit shares one
+   multiplier per *column*, so the wordiest column inflates most — header and
+   cells together — and the same asymmetry made code lines grow while their
+   gutter digits stayed put. The percentage is what the page asks for: 100%
+   means leave our sizes alone. Inherited, so html covers everything. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--plane);

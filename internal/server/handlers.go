@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"html/template"
 	"mime"
@@ -323,6 +324,56 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r,
 		"/commits/"+url.PathEscape(ref)+"?path="+url.QueryEscape(p),
 		http.StatusFound)
+}
+
+// searchTimeout bounds one search. git grep over a large repository is seconds
+// for a sparse pattern, so this is not the personas' page budget — that budget
+// is about pages rendered from objects gerve already has. A deadline it can
+// report beats a request that hangs without saying anything, and the results
+// page says when it was cut short.
+const searchTimeout = 10 * time.Second
+
+func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+	ref := strings.Trim(strings.TrimPrefix(r.URL.Path, "/search"), "/")
+	if ref == "" {
+		ref = s.def
+	}
+	hash, err := s.repo.Resolve(ref)
+	if err != nil {
+		s.errorPage(w, r, http.StatusNotFound, "unknown ref", "No branch, tag, or commit named "+ref+".")
+		return
+	}
+
+	q := r.URL.Query()
+	query := q.Get("q")
+	scope, ok := validQueryParamPath(q.Get("path"))
+	if !ok {
+		scope = ""
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), searchTimeout)
+	defer cancel()
+	res, err := s.repo.Search(ctx, hash, s.repo.OverlayActive(hash), query, scope, git.SearchLimit)
+	if err != nil {
+		s.errorPage(w, r, http.StatusInternalServerError, "error", "Could not search this repository.")
+		return
+	}
+
+	page := render.SearchPage{
+		Base:    s.newBase(ref, "", "search"),
+		Result:  res,
+		Limit:   git.SearchLimit,
+		Timeout: int(searchTimeout / time.Second),
+	}
+	// The scope and the query live in the query string, not the path, so the
+	// scope the header box carries is the one just searched rather than a repo
+	// path this page is "at".
+	page.Scope = scope
+	page.Query = query
+	if scope != "" {
+		page.WholeURL = render.URLFor("search", ref, "") + "?q=" + url.QueryEscape(query)
+	}
+	s.page(w, r, http.StatusOK, "search", page)
 }
 
 func (s *Server) refsPage(w http.ResponseWriter, r *http.Request) {

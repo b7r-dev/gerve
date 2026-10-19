@@ -20,6 +20,11 @@ if(t==="light"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme
   </div>
   <nav>
     {{if .Ref}}
+    <form class="searchbox" action="/search/{{urlPathEscape .Ref}}" method="get">
+      <input type="search" name="q" value="{{.Query}}" maxlength="200" placeholder="find" aria-label="search this repository" autocomplete="off" spellcheck="false">
+      {{if .Scope}}<input type="hidden" name="path" value="{{.Scope}}">{{end}}
+    </form>
+    <a class="searchlink" href="/search/{{urlPathEscape .Ref}}">search</a>
     <form class="refjump" action="/refs" method="get">
       <select id="refswitch" data-base="{{.Route}}" data-path="{{.Path}}" aria-label="switch ref">
         <option value="{{.Ref}}" selected>{{.Ref}}</option>

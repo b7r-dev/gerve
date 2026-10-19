@@ -1,0 +1,45 @@
+{{define "title"}}search · {{.RepoName}}{{end}}
+{{define "content"}}
+{{template "crumbs" .}}
+<form class="card search" action="/search/{{urlPathEscape .Ref}}" method="get">
+  <label class="field">
+    <span class="muted">find</span>
+    <input type="search" name="q" value="{{.Query}}" autocomplete="off" spellcheck="false" autofocus>
+  </label>
+  <label class="field">
+    <span class="muted">in</span>
+    <input type="text" name="path" value="{{.Scope}}" placeholder="the whole repository" autocomplete="off" spellcheck="false">
+  </label>
+  <button type="submit">search</button>
+</form>
+{{if .Query}}
+<div class="meta-line">
+  <span class="strong">{{.Result.Count}} {{if eq .Result.Count 1}}match{{else}}matches{{end}}</span>
+  <span class="muted">in {{len .Result.Groups}} {{if eq (len .Result.Groups) 1}}file{{else}}files{{end}} — {{if .Scope}}under <code>{{.Scope}}</code>{{else}}the whole repository{{end}}, at <code>{{.Ref}}</code></span>
+  {{if .Result.Capped}}<span class="chip chip-warn">stopped at {{.Limit}} — narrow the scope or refine the query</span>{{end}}
+  {{if .Result.Stopped}}<span class="chip chip-warn">stopped after {{.Timeout}}s — narrow the scope</span>{{end}}
+</div>
+{{if not .Result.Groups}}
+<div class="card">
+  <p>No matches for <code>{{.Query}}</code>{{if .Scope}} under <code>{{.Scope}}</code>{{end}}.</p>
+  {{if .Scope}}<p><a href="{{.WholeURL}}">Search the whole repository instead &rarr;</a></p>{{end}}
+</div>
+{{end}}
+{{range .Result.Groups}}
+<div class="card file">
+  <div class="fhead">
+    <code class="path">{{.Path}}</code>
+    {{if .Change}}<span class="badge b-{{.Change}}">{{.Change}}</span>{{end}}
+    <a class="right" href="{{urlFor "blob" $.Ref .Path}}#L{{(index .Matches 0).Line}}">open file &rarr;</a>
+  </div>
+  <div class="plaincode"><table>
+    {{range .Matches}}<tr><td class="ln">{{.Line}}</td><td class="lt hit-text">{{hit .Text $.Query}}</td></tr>{{end}}
+  </table></div>
+</div>
+{{end}}
+{{else}}
+<div class="card">
+  <p class="muted">Searching {{if .Scope}}<code>{{.Scope}}</code>{{else}}the repository{{end}} at <code>{{.Ref}}</code> for a literal string. Matches in tracked files are committed content — the same bytes the file view shows — and files that exist only in your working tree are searched too, badged as such.</p>
+</div>
+{{end}}
+{{end}}

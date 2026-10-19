@@ -764,6 +764,76 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
    the author's line breaks kept, at the small step. */
 .readme-plain { white-space: pre-wrap; margin: 0; font-size: var(--text-sm); }
 
+/* search ------------------------------------------------------------------------- */
+
+/* The header's search box wears the ref selector's chrome and appears only when
+   the header has room for it; below that the nav link opens the same form, so
+   there is one searching surface either way. */
+.searchlink { display: inline; }
+.searchbox { display: none; }
+@media (min-width: 1024px) {
+  .searchlink { display: none; }
+  .searchbox { display: flex; }
+}
+.searchbox input {
+  background: var(--raised);
+  color: var(--fg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  padding: var(--sp-1) var(--sp-2);
+  font: 400 var(--text-sm)/1.4 var(--font-mono);
+  width: 12rem;
+  appearance: none;
+  transition: border-color var(--dur) var(--ease);
+}
+.searchbox input:hover { border-color: var(--border-2); }
+.searchbox input::placeholder { color: var(--fg-3); }
+
+/* the query form, which carries the scope as a visible, editable field: a
+   scoped search that does not show its scope is a trap for the next reader */
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+.search .field { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; flex: 1 1 auto; }
+.search input {
+  background: var(--sunken);
+  color: var(--fg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  padding: var(--sp-1) var(--sp-2);
+  font: 400 var(--text-sm)/1.4 var(--font-mono);
+  flex: 1 1 auto;
+  min-width: 8rem;
+  appearance: none;
+}
+.search input[name="q"] { min-width: 12rem; }
+.search input:hover { border-color: var(--border-2); }
+.search input::placeholder { color: var(--fg-3); }
+.search button {
+  background: var(--pool-tint);
+  color: var(--pool-bright);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  padding: var(--sp-1) var(--sp-3);
+  font: 600 var(--text-sm)/1.4 var(--font-mono);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.search button:hover { color: var(--fg-1); border-color: var(--border-2); }
+
+/* Results reuse the code-row shape — a line per match — but wrap instead of
+   scrolling: a matched line can be a minified 2000 characters, and a result you
+   have to scroll sideways to read is a result you will not read. */
+.plaincode td.hit-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.hit {
+  font-style: normal;
+  background: var(--row-hl);
+  border-radius: var(--radius-1);
+}
+
 /* errors ---------------------------------------------------------------------------- */
 
 .errpage { max-width: 30rem; margin: var(--sp-7) auto; text-align: center; }

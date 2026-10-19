@@ -13,9 +13,15 @@ type Base struct {
 	Ref      string
 	Head     git.HeadInfo
 	Refs     []git.RefInfo
-	Route    string // route name for the ref switcher: tree|blob|blame
-	Path     string
-	Crumbs   []Crumb
+	Route    string // route name for the ref switcher: tree|blob|blame|search
+	Path     string // the repo path this page is about (crumbs, ref-pinned links)
+	// Scope is what the header's search box carries as its default: the path
+	// you are looking at, so a search started from a directory searches that
+	// directory, and the results page carries the scope it just used. Empty
+	// means the whole repository.
+	Scope  string
+	Query  string // the search box's current value, filled on the results page
+	Crumbs []Crumb
 }
 
 // Crumb is one breadcrumb segment.
@@ -62,6 +68,19 @@ type CommitsPage struct {
 	Follow  bool
 	PrevURL string
 	NextURL string
+}
+
+// SearchPage renders results for one query, grouped by file. The scope is
+// Base.Scope — the same field the header's search box carries, since on this
+// page they are the same fact.
+type SearchPage struct {
+	Base
+	// WholeURL repeats this query with no scope, so a scoped search that found
+	// nothing can offer the wider one in a click.
+	WholeURL string
+	Result   *git.SearchResult
+	Limit    int
+	Timeout  int // seconds; the deadline the search ran under
 }
 
 // FileView wraps one file's diff with precomputed render structures.

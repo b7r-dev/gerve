@@ -58,6 +58,7 @@ func New(repo *git.Repo, rnd *render.Renderer, opts Options) *Server {
 	mux.HandleFunc("GET /commits/", s.commits)
 	mux.HandleFunc("GET /commit/", s.commit)
 	mux.HandleFunc("GET /history/", s.history)
+	mux.HandleFunc("GET /search/", s.search)
 	mux.HandleFunc("GET /refs", s.refsPage)
 	mux.HandleFunc("GET /static/", s.serveStatic)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +135,11 @@ func (s *Server) newBase(ref, path, route string) render.Base {
 		Refs:     refs,
 		Route:    route,
 		Path:     path,
-		Crumbs:   s.crumbs(ref, path),
+		// The header's search box starts scoped to what you are looking at, so
+		// searching from a directory searches that directory; one click clears
+		// it. The results page overrides this with the scope it just searched.
+		Scope:  path,
+		Crumbs: s.crumbs(ref, path),
 	}
 }
 

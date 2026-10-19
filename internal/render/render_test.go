@@ -93,6 +93,37 @@ func TestPlainCodeRowsAreAddressable(t *testing.T) {
 	}
 }
 
+// TestEmphasiseMatchEscapesBothHalves: the text comes out of a file and the
+// query out of a text box, so both are input a stranger can influence — and the
+// markup around the match is built by hand, which is exactly where escaping must
+// not be skipped.
+func TestEmphasiseMatchEscapesBothHalves(t *testing.T) {
+	got := string(emphasiseMatch(`a <img src=x onerror=alert(1)> nee&dle`, "nee&dle"))
+	if strings.Contains(got, "<img") {
+		t.Errorf("matched text was not escaped: %s", got)
+	}
+	if !strings.Contains(got, `<em class="hit">nee&amp;dle</em>`) {
+		t.Errorf("the match is not emphasised, or not escaped: %s", got)
+	}
+
+	got = string(emphasiseMatch(`x <script>alert(1)</script>`, "<script>"))
+	if strings.Contains(got, "<script>") {
+		t.Errorf("a markup-shaped query was not escaped: %s", got)
+	}
+	if !strings.Contains(got, `<em class="hit">&lt;script&gt;</em>`) {
+		t.Errorf("escaped query is not emphasised: %s", got)
+	}
+
+	got = string(emphasiseMatch(`a <b>bold</b> line`, "absent"))
+	if strings.Contains(got, "<b>") || strings.Contains(got, "<em") {
+		t.Errorf("unmatched text was not escaped or was wrapped anyway: %s", got)
+	}
+
+	if got := string(emphasiseMatch("plain", "")); strings.Contains(got, "<em") {
+		t.Errorf("an empty query emphasised something: %s", got)
+	}
+}
+
 func TestMarkdownRewriteLinks(t *testing.T) {
 	rd, err := New()
 	if err != nil {

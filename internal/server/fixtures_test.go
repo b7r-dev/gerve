@@ -40,6 +40,19 @@ func commitFiles(t *testing.T, dir, subject string, files map[string]string) str
 	return gitHelperOut(t, dir, "rev-parse", "HEAD")
 }
 
+// writeWorktreeFile writes a file without committing it, which is how the
+// overlay tests get a dirty worktree.
+func writeWorktreeFile(t *testing.T, dir, name, body string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // newTestServer serves dir and returns the server plus its renderer. The server
 // is closed when the test ends.
 func newTestServer(t *testing.T, dir string) (*httptest.Server, *render.Renderer) {

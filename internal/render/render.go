@@ -57,6 +57,7 @@ func New() (*Renderer, error) {
 		"urlPathEscape": url.PathEscape,
 		"kindClass":     kindClass,
 		"initial":       initial,
+		"hit":           emphasiseMatch,
 	}
 
 	hashes, err := hashStatic()
@@ -70,7 +71,7 @@ func New() (*Renderer, error) {
 		return nil, fmt.Errorf("parse layout: %w", err)
 	}
 	pages := map[string]*template.Template{}
-	for _, name := range []string{"tree", "blob", "blame", "commits", "commit", "refs", "error", "empty"} {
+	for _, name := range []string{"tree", "blob", "blame", "commits", "commit", "refs", "search", "error", "empty"} {
 		t, err := root.Clone()
 		if err != nil {
 			return nil, err
@@ -397,6 +398,21 @@ func initial(name string) string {
 		return strings.ToUpper(string(r))
 	}
 	return "?"
+}
+
+// emphasiseMatch marks the matched substring inside one line of matched text.
+// Both sides are escaped here, and the result is deliberately template.HTML:
+// putting a highlight inside text that came out of a file means building the
+// markup yourself, and the escaping is what makes that safe. Only the first
+// occurrence is marked — a query can only be shown once without inventing a
+// notion of relevance.
+func emphasiseMatch(text, query string) template.HTML {
+	esc := template.HTMLEscapeString
+	i := strings.Index(text, query)
+	if query == "" || i < 0 {
+		return template.HTML(esc(text))
+	}
+	return template.HTML(esc(text[:i]) + `<em class="hit">` + esc(query) + `</em>` + esc(text[i+len(query):]))
 }
 
 // timeago renders a relative time as a <time> element that also carries the

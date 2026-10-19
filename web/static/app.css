@@ -4,7 +4,10 @@
    Dark is the no-JS default; layout.tmpl adds html.light before paint.
    Type: IBM Plex Sans + Mono, embedded (SIL OFL 1.1 — see fonts/OFL.txt).
    Spacing scale: 4px base — 2* 4 8 12 16 24 32 48 (* half-step, chips only).
-   Anything off-scale in padding/margin/gap fails scripts/design-check.sh. */
+   Anything off-scale in padding/margin/gap fails scripts/design-check.sh.
+   Type scale: seven steps, one job each (roles in :root). Every font-size here
+   is a --text-* token; no size is derived from another with em/calc, and
+   scripts/design-check.sh fails if one is introduced. */
 
 @font-face {
   font-family: "IBM Plex Sans";
@@ -80,17 +83,22 @@
   /* type */
   --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --text-2xs: 0.6875rem;
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-base: 0.9375rem;
-  --text-md: 1.0625rem;
-  --text-lg: 1.375rem;
-  --text-xl: 1.625rem;
-  /* code layer — rides the 2xs step, but named because Plex Mono's large
+  /* Seven steps, one job each: a step with no job is dead weight, and a job
+     with two steps is a style bug. */
+  --text-2xs: 0.6875rem;   /* 11 — the code layer, plus chips, badges, copy */
+  --text-xs: 0.75rem;      /* 12 — fine print: footer, section labels, md tables */
+  --text-sm: 0.8125rem;    /* 13 — chrome and verbatim prose: crumbs, meta lines,
+                                 toolbars, listings, commit body */
+  --text-base: 0.9375rem;  /* 15 — prose: body, markdown, cards */
+  --text-md: 1.0625rem;    /* 17 — card titles, markdown h3 */
+  --text-lg: 1.375rem;     /* 22 — markdown h2, commit subject */
+  --text-xl: 1.625rem;     /* 26 — markdown h1 */
+  /* The code layer is named rather than numbered because Plex Mono's large
      x-height and wide glyphs make code read a size larger than the same px of
-     sans: wells sit *below* the prose they annotate, never beside it. */
-  --text-code: var(--text-2xs);     /* 11px — wells, diffs, fenced blocks, gutters */
+     sans: wells sit *below* the prose they annotate, never beside it. Every
+     piece of repository content shown in mono — wells, gutters, diffs, refs,
+     hashes, the label above a well — rides this one size. */
+  --text-code: var(--text-2xs);
 
   /* space scale */
   --sp-1: 4px;
@@ -176,10 +184,20 @@ a:hover { color: var(--ion); }
 
 .strong { font-weight: 600; color: var(--fg-1); }
 .muted { color: var(--fg-3); }
+/* Both families ship 400 and 600 — mono has no bold — so ask <strong> for the
+   600 the fonts actually carry instead of letting the browser synthesise a
+   bolder one: synthetic bold widens glyphs, which reads as a size change. */
+b, strong { font-weight: 600; }
 
-code, pre, .dn, .dc, .ln, .lt, .hash, .hashcode, .bhead, .hunk-h, .sbs-h,
-.panel-label, .chip {
+/* Repository content shown in mono is one size, everywhere. This is the only
+   place a code-surface size is set; the elements below differ in colour and
+   arrangement, never in size. Mono *chrome* — section labels, chips, the
+   footer, the logo, the ref selector — declares its own font shorthand and so
+   never sees this rule. */
+code, pre, .dn, .dc, .ln, .lt, .hash, .hashcode, .bhead, .fhead, .hunk-h {
   font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: 1.5;
 }
 
 /* header — floating glass capsule ------------------------------------------ */
@@ -227,7 +245,9 @@ code, pre, .dn, .dc, .ln, .lt, .hash, .hashcode, .bhead, .hunk-h, .sbs-h,
 }
 .top nav a:hover { color: var(--fg-1); background: var(--pool-tint); }
 
-select, #refswitch {
+/* The ref selector is the header's only form control; the no-JS "go" button
+   beside it wears the same chrome so the header reads the same either way. */
+select, #refswitch, .refjump button {
   background: var(--raised);
   color: var(--fg-1);
   border: 1px solid var(--border-1);
@@ -237,7 +257,7 @@ select, #refswitch {
   max-width: 18rem;
   transition: border-color var(--dur) var(--ease);
 }
-select:hover { border-color: var(--border-2); }
+select:hover, .refjump button:hover { border-color: var(--border-2); }
 
 #themeBtn {
   background: transparent;
@@ -247,8 +267,9 @@ select:hover { border-color: var(--border-2); }
   cursor: pointer;
   width: 28px;
   height: 28px;
-  font-size: var(--text-sm);
-  line-height: 1;
+  /* form controls do not inherit the page font: name it, or the glyph renders
+     in the system UI face while everything around it is IBM Plex */
+  font: 400 var(--text-sm)/1 var(--font-mono);
   transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 #themeBtn:hover { color: var(--fg-1); border-color: var(--border-2); }
@@ -266,7 +287,6 @@ footer {
   font-family: var(--font-mono);
 }
 footer .dot-rule {
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.5em;
   color: var(--pool);
@@ -279,9 +299,14 @@ footer .dot-rule {
 .crumbs a { color: var(--fg-3); }
 .crumbs a:hover { color: var(--fg-1); }
 .crumbs .sep { margin: 0 var(--sp-1); color: var(--border-2); }
-.crumbs .strong, .strong { font-weight: 600; color: var(--fg-1); }
 
 /* surfaces ------------------------------------------------------------------ */
+
+/* Headings carry one weight and one rhythm wherever they appear; each context
+   sets its own size afterwards. A section label is an <h2> for structure but
+   takes its size from .panel-label, which outranks the bare element rule. */
+h1, h2, h3, h4, h5, h6 { font-weight: 600; line-height: 1.3; }
+h2 { font-size: var(--text-md); margin: 0 0 var(--sp-3); }
 
 .card {
   background: var(--raised);
@@ -290,18 +315,20 @@ footer .dot-rule {
   padding: var(--sp-4);
   margin: var(--sp-4) 0;
 }
-/* the :not() guard matters: a section label can be an <h2> for structure while
-   still being styled by .panel-label, which must not inherit heading sizing */
-.card h2:not(.panel-label) { font-size: var(--text-md); margin: 0 0 var(--sp-3); }
 
 .panel-label {
   display: block;
-  font: 500 var(--text-xs)/1.4 var(--font-mono);
+  /* 400, not 500: the shipped faces are 400/600, and a 500 request resolves to
+     400 anyway — asking for a weight the family does not have is a lie. */
+  font: 400 var(--text-xs)/1.4 var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--pool-bright);
-  margin: 0 0 var(--sp-3);
+  /* generous above, tight below: the label opens a section, it does not
+     caption the one it follows */
+  margin: var(--sp-5) 0 var(--sp-3);
 }
+.panel-label:first-of-type { margin-top: 0; }
 
 .meta-line {
   display: flex;
@@ -310,13 +337,8 @@ footer .dot-rule {
   gap: var(--sp-2) var(--sp-3);
   margin: var(--sp-2) 0 var(--sp-3);
   font-size: var(--text-sm);
-  min-height: 1.4em;
 }
 .meta-line:empty { display: none; }
-/* Refs and hashes inside meta lines are repository content, not prose: they ride
-   the code size like every other piece of content shown in mono. */
-.meta-line code,
-.crumbs code { font-size: var(--text-code); }
 
 /* relative times — the popover carries the absolute instant ----------------- */
 
@@ -367,32 +389,23 @@ td.age .time-tip,
   color: var(--fg-1);
 }
 
-.chip {
-  display: inline-block;
-  font: 500 var(--text-2xs)/1.6 var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0 var(--sp-2);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-1);
-  background: var(--pool-tint);
-  color: var(--pool-bright);
-  white-space: nowrap;
-  vertical-align: 1px;
-}
-.chip-warn { border-color: var(--border-2); color: var(--pool-bright); }
-.chip-live { background: var(--add-tint); color: var(--add); border-color: transparent; }
-
-.badge {
+/* Pills — the small uppercase mono label that rides a line of text. A chip is
+   context ("main", "merge"), a badge is status (M, A, D), and they differ only
+   in colour, which is what the classes after them set. */
+.chip, .badge {
   display: inline-block;
   font: 600 var(--text-2xs)/1.6 var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   padding: 0 var(--sp-2);
-  border-radius: var(--radius-full);
   border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
   vertical-align: 1px;
 }
+.chip { border-color: var(--border-1); background: var(--pool-tint); color: var(--pool-bright); }
+.chip-warn { border-color: var(--border-2); color: var(--pool-bright); }
+.chip-live { background: var(--add-tint); color: var(--add); border-color: transparent; }
 .b-untracked { color: var(--ion); background: var(--ion-tint); }
 .b-added, .st-A { color: var(--add); background: var(--add-tint); }
 .b-modified, .st-M, .st-T { color: var(--pool-bright); background: var(--pool-tint); }
@@ -422,13 +435,13 @@ table.listing tbody tr { transition: background-color var(--dur) var(--ease); }
 table.listing tbody tr:hover td { background: var(--pool-tint); }
 td.icon { width: var(--sp-5); text-align: center; }
 td.name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
-td.name a { color: var(--fg-1); font-weight: 500; }
+td.name a { color: var(--fg-1); }
 td.name a:hover { color: var(--ion); }
 td.msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30rem; }
 /* the subject link takes its colour from its own class: .muted where it is a
    row's secondary text, .strong where it is the row's primary text */
 td.age, td.size { text-align: right; white-space: nowrap; width: 6rem; color: var(--fg-3); }
-td.hash { white-space: nowrap; font-size: var(--text-code); }
+td.hash { white-space: nowrap; }
 .empty-row { padding: var(--sp-4) var(--sp-3); color: var(--fg-3); }
 
 .rc {
@@ -472,7 +485,9 @@ td.hash { white-space: nowrap; font-size: var(--text-code); }
 
 /* Every code surface is the same shape: one row per line, gutter cell plus
    content cell, so blob, blame, diffs and plain text all align identically
-   and each gutter can stick while its line scrolls. */
+   and each gutter can stick while its line scrolls. Row heights need no floor:
+   every row carries at least one gutter number, so the line box sets the
+   height and a blank line is exactly as tall as a filled one. */
 .plaincode {
   overflow: auto;
   border: 1px solid var(--border-1);
@@ -487,27 +502,26 @@ td.hash { white-space: nowrap; font-size: var(--text-code); }
   text-align: right;
   padding: 0 var(--sp-2) 0 var(--sp-3);
   min-width: 3.2rem;
-  /* relative, so the number tracks its own line whatever the font resolves to.
-     The height is a floor: a blank line's cell would otherwise be free to
-     collapse and make empty lines shorter than filled ones. */
-  line-height: 1.5;
-  height: 1.5em;
   /* the digit sits optically centred in its own line box, not pinned to the top */
   vertical-align: middle;
   user-select: none;
 }
 .lt { white-space: pre; padding: 0 var(--sp-3) 0 var(--sp-2); }
-.plaincode pre, .plaincode td {
-  margin: 0;
-  font-size: var(--text-code);
-  line-height: 1.5;
-  /* floor the row height so blank lines match filled ones */
-  height: 1.5em;
-}
 /* Gutters hold their place while the code scrolls sideways — the same gesture
    as the diff viewer, so a line reads identically in both. Opaque background
    (see .ln/.dn) so nothing bleeds through the digits. */
 .plaincode td.ln { position: sticky; left: 0; background: var(--sunken); }
+
+/* A header that labels a code well. Blame groups and diff files wear the same
+   header; they differ only in how they meet the well beneath them. */
+.bhead, .fhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--raised);
+}
 
 /* chroma — tokens derived from the palette (dark default, light scoped) ------ */
 
@@ -541,41 +555,24 @@ td.hash { white-space: nowrap; font-size: var(--text-code); }
 .chroma .ges { font-style: italic; }
 .chroma .w { color: inherit; }
 
-html.light .chroma .err { color: var(--del); }
+/* Light needs exactly one chroma override: pool-bright is bright by
+   construction, and every other token already carries the contrast its own
+   theme needs. */
 html.light .chroma .k, html.light .chroma .kc, html.light .chroma .kd,
 html.light .chroma .kn, html.light .chroma .kp, html.light .chroma .kr,
 html.light .chroma .kt, html.light .chroma .nb,
 html.light .chroma .nt { color: var(--pool); }
-html.light .chroma .s, html.light .chroma .s1, html.light .chroma .s2,
-html.light .chroma .sa, html.light .chroma .sb, html.light .chroma .sc,
-html.light .chroma .sd, html.light .chroma .se, html.light .chroma .sh,
-html.light .chroma .si, html.light .chroma .sr, html.light .chroma .ss,
-html.light .chroma .na, html.light .chroma .l { color: var(--paper); }
-html.light .chroma .c, html.light .chroma .c1, html.light .chroma .ch,
-html.light .chroma .cm, html.light .chroma .cs,
-html.light .chroma .cp { color: var(--fg-3); }
-html.light .chroma .m, html.light .chroma .mb, html.light .chroma .mf,
-html.light .chroma .mh, html.light .chroma .mi, html.light .chroma .ml,
-html.light .chroma .mo, html.light .chroma .nv { color: var(--ion); }
-html.light .chroma .nd { color: var(--del); }
-html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: var(--fg-2); }
 
 /* blame ------------------------------------------------------------------------ */
 
 .blame { margin-top: var(--sp-2); }
 .bgroup { margin-bottom: var(--sp-4); }
 .bhead {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: baseline;
-  flex-wrap: wrap;
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--raised);
+  /* joins the well it labels: no bottom border, and the well's top corners
+     square off to meet it */
   border: 1px solid var(--border-1);
   border-bottom: none;
   border-radius: var(--radius-1) var(--radius-1) 0 0;
-  /* labels a code well: the header rides the code size, see --text-code */
-  font-size: var(--text-code);
 }
 .bhead a { color: var(--pool-bright); }
 .bgroup .plaincode { border-radius: 0 0 var(--radius-2) var(--radius-2); }
@@ -590,16 +587,7 @@ html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: va
 /* diffs -------------------------------------------------------------------------- */
 
 .file { padding: 0; overflow: hidden; }
-.fhead {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: baseline;
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border-1);
-  background: var(--raised);
-  /* labels a code well: the header rides the code size, see --text-code */
-  font-size: var(--text-code);
-}
+.fhead { border-bottom: 1px solid var(--border-1); }
 .fhead .path { word-break: break-all; }
 .fhead .right { margin-left: auto; }
 
@@ -608,8 +596,8 @@ html.light .chroma .o, html.light .chroma .ow, html.light .chroma .p { color: va
    The header stays put, and gutters/hunk markers stick so the numbers and
    the current hunk never scroll out of sight. */
 .diff-scroll { overflow-x: auto; }
-table.diff { width: 100%; border-collapse: collapse; font-size: var(--text-code); line-height: 1.5; }
-table.diff td { padding: 0 var(--sp-3) 0 0; vertical-align: top; height: 1.5em; }
+table.diff { width: 100%; border-collapse: collapse; }
+table.diff td { padding: 0 var(--sp-3) 0 0; vertical-align: top; }
 table.diff .dn {
   width: 3.4rem;
   min-width: 3.4rem;
@@ -626,7 +614,7 @@ table.diff .dn:first-child { background: var(--raised); }
 table.diff .dc { white-space: pre; }
 tr.d-add td.dc, .d-add { background: var(--add-tint); }
 tr.d-del td.dc, .d-del { background: var(--del-tint); }
-tr.d-hunk td, .hunk-h, .sbs-h {
+tr.d-hunk td, .hunk-h {
   color: var(--fg-3);
   background: var(--emphasis);
   padding: var(--sp-1) var(--sp-3);
@@ -635,9 +623,11 @@ tr.d-hunk td, .hunk-h, .sbs-h {
 table.diff.side .dc { width: 42%; }
 table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 
-.commit-head h2 { margin: 0 0 var(--sp-2); font-size: var(--text-lg); line-height: 1.3; }
+/* The subject is a title; the body is verbatim text from the author, so it
+   stays in mono and keeps its own line breaks and wrap column. */
+.commit-head h2 { margin: 0 0 var(--sp-2); font-size: var(--text-lg); }
 .commit-body { white-space: pre-wrap; margin: var(--sp-2) 0; font-size: var(--text-sm); color: var(--fg-2); }
-.hashcode { font-size: var(--text-code); color: var(--fg-3); }
+.hashcode { color: var(--fg-3); }
 .copybtn {
   background: transparent;
   border: 1px solid var(--border-1);
@@ -654,11 +644,11 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   display: inline-block;
   width: var(--sp-5);
   height: var(--sp-5);
-  line-height: var(--sp-5);
   text-align: center;
   border-radius: var(--radius-full);
   background: var(--pool-tint);
   color: var(--pool-bright);
+  /* the initial is centred in the disc: line-height matches its own box */
   font: 600 var(--text-code)/var(--sp-5) var(--font-mono);
 }
 .add { color: var(--add); font-weight: 600; }
@@ -672,11 +662,7 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .md { font-size: var(--text-base); line-height: 1.65; color: var(--fg-1); }
 .md > :first-child { margin-top: 0; }
 .md > :last-child { margin-bottom: 0; }
-.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
-  font-weight: 600;
-  line-height: 1.3;
-  margin: 1.6em 0 0.6em;
-}
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 1.6em 0 0.6em; }
 .md h1 {
   font-size: var(--text-xl);
   letter-spacing: -0.015em;
@@ -694,12 +680,14 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .md a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
 .md a:hover { color: var(--ion); }
 .md strong { font-weight: 600; color: var(--fg-1); }
+/* Inline code is a code surface like any other: it takes the code step from
+   the shared mono rule, so a ref in a sentence is the same size as a ref in a
+   well, and no size is derived from the surrounding prose. */
 .md code {
   background: var(--sunken);
   border: 1px solid var(--border-1);
   border-radius: var(--radius-1);
   padding: 0.1em 0.35em;
-  font-size: 0.85em;
   color: var(--pool-bright);
 }
 .md pre {
@@ -714,8 +702,6 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   border: none;
   background: none;
   padding: 0;
-  font-size: var(--text-code);
-  line-height: 1.5;
   color: var(--fg-1);
 }
 .md blockquote {
@@ -737,7 +723,8 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .md li.task-list-item::marker { content: none; }
 .md input[type="checkbox"] { accent-color: var(--pool); margin-right: var(--sp-2); }
 /* Wide tables scroll inside the card rather than squeezing their columns into
-   tall wrapped cells; the renderer wraps each table in .table-scroll. */
+   tall wrapped cells; the renderer wraps each table in .table-scroll. Tables
+   ride the fine step, not the code step: they are prose in columns. */
 .md .table-scroll { overflow-x: auto; margin: 0 0 1.25em; }
 .md .table-scroll > table { margin: 0; width: max-content; }
 .md table { border-collapse: collapse; font-size: var(--text-xs); }
@@ -745,12 +732,13 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .md th { background: var(--raised); font-weight: 600; color: var(--fg-2); }
 .md img { max-width: 100%; border: 1px solid var(--border-1); border-radius: var(--radius-2); display: block; margin: 0 0 1.25em; }
 .md hr { border: 0; border-top: 1px solid var(--border-1); margin: var(--sp-6) 0; }
+/* A README gerve cannot parse as markdown falls back to verbatim text: mono,
+   the author's line breaks kept, at the small step. */
 .readme-plain { white-space: pre-wrap; margin: 0; font-size: var(--text-sm); }
 
 /* errors ---------------------------------------------------------------------------- */
 
 .errpage { max-width: 30rem; margin: var(--sp-7) auto; text-align: center; }
-.errpage h2 { font-size: var(--text-md); }
 .errpage pre { text-align: left; }
 
 @media (max-width: 640px) {
@@ -765,7 +753,7 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 
   main { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
   .toolbar { flex-wrap: wrap; }
-  .fhead { flex-wrap: wrap; row-gap: var(--sp-1); }
+  .fhead { row-gap: var(--sp-1); }
 
   /* listings stack into two-line rows: name, then message */
   table.listing, table.listing tbody { display: block; }

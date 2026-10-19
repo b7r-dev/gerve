@@ -89,6 +89,11 @@ default. Read-only: gerve never writes to the repository.
 - **Commit pages** with rename-aware patches, toggleable unified/side-by-side.
 - **Commit log**, including directory-scoped (`?path=`) and `--follow` file
   history.
+- **Search** for a literal string, scoped to a directory or the whole
+  repository. Results are line links: each match opens the file view at that
+  line, already highlighted. Tracked files are searched as committed — the same
+  bytes the file view shows — and files that exist only in your working tree are
+  searched too, badged as such.
 - **Blame** via `git blame --porcelain`.
 
 Type set in [IBM Plex Sans](https://github.com/IBM/plex) and

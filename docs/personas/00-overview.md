@@ -83,8 +83,13 @@ Additional decisions from review:
 
 ## Explicitly deferred to v2+
 
-Multi-repo mode, LAN sharing guide, commit/file search, Atom feed, snapshot
-export, uncommitted-change indicators on non-HEAD refs, Wails desktop wrapper.
+Multi-repo mode, LAN sharing guide, commit search, Atom feed, snapshot export,
+uncommitted-change indicators on non-HEAD refs, Wails desktop wrapper.
+
+File search came in with v1 after all. It turned out to ride the same read-only
+`git grep` primitive the rest of the tool uses, so what looked like a feature was
+a route and a page. Commit-message search is still deferred, and is a different
+thing: a different index, and a different question ("when did this change?").
 
 ## Assumptions to verify during implementation
 

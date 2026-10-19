@@ -26,7 +26,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		if rerr != nil || rec == "" {
 			refs, _ := s.repo.Refs()
 			if len(refs) == 0 {
-				s.rnd.Page(w, "empty", render.EmptyPage{Base: s.newBase("", "", "tree")})
+				s.page(w, r, http.StatusOK, "empty", render.EmptyPage{Base: s.newBase("", "", "tree")})
 				return
 			}
 			// dangling HEAD with other refs: land on the ref list
@@ -90,7 +90,7 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.rnd.Page(w, "tree", page)
+	s.page(w, r, http.StatusOK, "tree", page)
 }
 
 func (s *Server) blob(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +158,7 @@ func (s *Server) blob(w http.ResponseWriter, r *http.Request) {
 	page.CanHistory = committedHere
 	page.CanBlame = committedHere && !b.Binary && b.Size <= 4<<20
 
-	s.rnd.Page(w, "blob", page)
+	s.page(w, r, http.StatusOK, "blob", page)
 }
 
 func (s *Server) blobErr(w http.ResponseWriter, r *http.Request, err error) {
@@ -189,7 +189,7 @@ func (s *Server) blame(w http.ResponseWriter, r *http.Request) {
 			"Blame is not available for this path here — it may be untracked, binary, or too large.")
 		return
 	}
-	s.rnd.Page(w, "blame", render.BlamePage{Base: s.newBase(ref, p, "blame"), Groups: groups})
+	s.page(w, r, http.StatusOK, "blame", render.BlamePage{Base: s.newBase(ref, p, "blame"), Groups: groups})
 }
 
 func (s *Server) raw(w http.ResponseWriter, r *http.Request) {
@@ -259,7 +259,7 @@ func (s *Server) commits(w http.ResponseWriter, r *http.Request) {
 	if lp.Next {
 		p.NextURL = mkURL(page + 1)
 	}
-	s.rnd.Page(w, "commits", p)
+	s.page(w, r, http.StatusOK, "commits", p)
 }
 
 func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
@@ -311,7 +311,7 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 	page.SideURL = "/commit/" + rev + "?view=side"
 	page.UnifiedURL = "/commit/" + rev
 
-	s.rnd.Page(w, "commit", page)
+	s.page(w, r, http.StatusOK, "commit", page)
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {
@@ -343,7 +343,7 @@ func (s *Server) refsPage(w http.ResponseWriter, r *http.Request) {
 			page.Tags = append(page.Tags, e)
 		}
 	}
-	s.rnd.Page(w, "refs", page)
+	s.page(w, r, http.StatusOK, "refs", page)
 }
 
 // serveStatic serves the embedded assets. A request whose ?v= matches the

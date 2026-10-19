@@ -185,8 +185,7 @@ func (s *Server) splitRefPath(rest string) (ref, path string, ok bool) {
 }
 
 func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, code int, title, msg string) {
-	w.WriteHeader(code) // status first: Page writes the body only
-	s.rnd.Page(w, "error", render.ErrorPage{
+	s.page(w, r, code, "error", render.ErrorPage{
 		Base:    s.newBase(s.def, "", "tree"),
 		Code:    code,
 		Title:   title,

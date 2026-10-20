@@ -171,6 +171,36 @@ func TestSearchEscapesQueryAndContent(t *testing.T) {
 	}
 }
 
+// TestFindInThisDirectoryKeepsANestedScope: the tree page's link is a URL in an
+// href, and html/template re-normalizes interpolated strings there — an escaped
+// slash used to come back as %252F, which names no path, so the scope was
+// silently dropped and the search widened to the whole repository.
+func TestFindInThisDirectoryKeepsANestedScope(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{
+		"sub/deep/needle.txt": "nested-needle\n",
+		"other/decoy.txt":     "decoy-needle\n",
+	})
+	ts, _ := newTestServer(t, dir)
+
+	tree, _ := getBody(t, ts.URL+"/tree/HEAD/sub/deep/")
+	want := `href="/search/HEAD?path=sub%2Fdeep"`
+	if !strings.Contains(tree, want) {
+		t.Fatalf("the directory link is not the URL a browser should follow:\nwant %s", want)
+	}
+
+	body, _ := getBody(t, ts.URL+"/search/HEAD?q=needle&path=sub%2Fdeep")
+	if !strings.Contains(body, "1 match") {
+		t.Errorf("following that link did not scope the search:\n%.400s", body)
+	}
+	if strings.Contains(body, "decoy-needle") {
+		t.Error("following that link searched outside the scope")
+	}
+	if !strings.Contains(body, "under <code>sub/deep</code>") {
+		t.Error("the results do not state the nested scope")
+	}
+}
+
 // TestSearchScopeCanNameAFile: a file is a pathspec like any other, so "search
 // in this file" costs nothing.
 func TestSearchScopeCanNameAFile(t *testing.T) {

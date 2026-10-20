@@ -48,17 +48,17 @@ type Renderer struct {
 // New parses templates and prepares markdown + chroma CSS.
 func New() (*Renderer, error) {
 	funcs := template.FuncMap{
-		"short":          shortHash,
-		"timeago":        timeago,
-		"shortdate":      func(t time.Time) string { return t.Format("2006-01-02") },
-		"sizefmt":        humanBytes,
-		"urlFor":         URLFor,
-		"joinPath":       joinPath,
-		"urlPathEscape":  url.PathEscape,
-		"urlQueryEscape": url.QueryEscape,
-		"kindClass":      kindClass,
-		"initial":        initial,
-		"hit":            emphasiseMatch,
+		"short":         shortHash,
+		"timeago":       timeago,
+		"shortdate":     func(t time.Time) string { return t.Format("2006-01-02") },
+		"sizefmt":       humanBytes,
+		"urlFor":        URLFor,
+		"joinPath":      joinPath,
+		"urlPathEscape": url.PathEscape,
+		"searchHref":    searchHref,
+		"kindClass":     kindClass,
+		"initial":       initial,
+		"hit":           emphasiseMatch,
 	}
 
 	hashes, err := hashStatic()
@@ -399,6 +399,20 @@ func initial(name string) string {
 		return strings.ToUpper(string(r))
 	}
 	return "?"
+}
+
+// searchHref is the link into a scoped search: the ref as a path segment, the
+// scope percent-encoded as a query value. It returns the whole URL rather than a
+// fragment because html/template normalizes interpolated strings in URL
+// attributes — an already-escaped "internal%2Fgit" comes back as
+// "internal%252Fgit", which asks the server for a path that does not exist and
+// silently widens the search to the whole repository.
+func searchHref(ref, path string) template.URL {
+	u := "/search/" + url.PathEscape(ref)
+	if path != "" {
+		u += "?path=" + url.QueryEscape(path)
+	}
+	return template.URL(u)
 }
 
 // emphasiseMatch marks the matched substring inside one line of matched text.

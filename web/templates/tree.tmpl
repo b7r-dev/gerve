@@ -9,7 +9,7 @@
   {{if .Overlay}}<span class="chip chip-live" title="untracked and modified files from the working tree are shown">live worktree</span>{{end}}
 </div>
 <div class="toolbar">
-  <a href="/search/{{urlPathEscape .Ref}}{{if .Path}}?path={{urlQueryEscape .Path}}{{end}}">find in {{if .Path}}this directory{{else}}the repository{{end}}</a>
+  <a href="{{searchHref .Ref .Path}}">find in {{if .Path}}this directory{{else}}the repository{{end}}</a>
 </div>
 <table class="listing">
   {{range .Entries}}

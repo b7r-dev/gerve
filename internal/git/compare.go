@@ -3,7 +3,9 @@ package git
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -49,6 +51,11 @@ type Range struct {
 	Adds, Dels    int
 	Stopped       bool // the deadline cut the answer short
 }
+
+// ErrObjectsUnavailable means the comparison needs file contents that are not
+// in this repository's object store — a partial clone, whose missing objects git
+// would normally fetch. gerve never fetches, so it says so instead.
+var ErrObjectsUnavailable = errors.New("objects are not available locally")
 
 // Compare reports what changed between two resolved commits, optionally scoped
 // to one path. It never renders a patch — that is RangePatch, once the caller
@@ -123,7 +130,7 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 			rng.Stopped = true
 			return rng, nil
 		}
-		return nil, err
+		return nil, r.statErr(err)
 	}
 	numOut, err := r.gitEnv(ctx, noLazyFetch(), statArgs("--numstat")...)
 	if err != nil {
@@ -131,7 +138,7 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 			rng.Stopped = true
 			return rng, nil
 		}
-		return nil, err
+		return nil, r.statErr(err)
 	}
 
 	counts := map[string]numstatRec{}
@@ -159,6 +166,28 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		rng.Files = rng.Files[:CompareMaxFiles]
 	}
 	return rng, nil
+}
+
+// statErr keeps the honest answer when a stat pass fails: in a partial clone the
+// contents git wants are simply not here, and gerve will not fetch them.
+func (r *Repo) statErr(err error) error {
+	if r.promisorPacks() {
+		return fmt.Errorf("%w: %v", ErrObjectsUnavailable, err)
+	}
+	return err
+}
+
+// promisorPacks reports whether this clone keeps objects elsewhere and fetches
+// them on demand. The pack marker survives the remote being removed, which the
+// config does not — and a clone whose remote is gone is exactly the case gerve
+// must not paper over.
+func (r *Repo) promisorPacks() bool {
+	base := filepath.Join(r.root, ".git")
+	if !r.worktree {
+		base = r.root
+	}
+	m, _ := filepath.Glob(filepath.Join(base, "objects", "pack", "*.promisor"))
+	return len(m) > 0
 }
 
 // RangePatches is the rendered half of a comparison, keyed by rangeKey.

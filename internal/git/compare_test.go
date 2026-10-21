@@ -2,8 +2,10 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -228,6 +230,42 @@ func TestRangePatchCapsAHugeFile(t *testing.T) {
 	}
 	if _, ok := patches.ByKey[rangeKey("", "huge.txt", "M")]; ok {
 		t.Error("a patch over the per-file cap was rendered anyway")
+	}
+}
+
+// TestCompareRefusesToFetchInAPartialClone: gerve is zero-egress, so a diff whose
+// objects live on a promisor remote must fail with the honest sentinel instead of
+// fetching them to look complete.
+func TestCompareRefusesToFetchInAPartialClone(t *testing.T) {
+	src := t.TempDir()
+	run := func(args ...string) { gitOut(t, src, args...) }
+	run("init", "-q", "-b", "main")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+	writeFile(t, src, "f.txt", "one\ntwo\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "base")
+	base := gitOut(t, src, "rev-parse", "HEAD")
+	writeFile(t, src, "f.txt", "one\nchanged\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "change")
+	head := gitOut(t, src, "rev-parse", "HEAD")
+	run("config", "uploadpack.allowFilter", "true")
+
+	dst := filepath.Join(t.TempDir(), "clone")
+	if out, err := exec.Command("git", "clone", "-q", "--filter=blob:none", "file://"+src, dst).CombinedOutput(); err != nil {
+		t.Skipf("partial clone unsupported here: %v: %s", err, out)
+	}
+	// Removing the remote proves nothing can be fetched: whatever is missing now
+	// has nowhere to come from.
+	gitOut(t, dst, "remote", "remove", "origin")
+
+	r, err := Open(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Compare(t.Context(), base, head, ""); !errors.Is(err, ErrObjectsUnavailable) {
+		t.Fatalf("err = %v, want ErrObjectsUnavailable", err)
 	}
 }
 

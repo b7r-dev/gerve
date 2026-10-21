@@ -375,6 +375,11 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rng, err := s.repo.Compare(ctx, baseHash, headHash, scope)
 	if err != nil {
+		if errors.Is(err, git.ErrObjectsUnavailable) {
+			s.errorPage(w, r, http.StatusInternalServerError, "contents not available",
+				"This comparison needs file contents that are not in this repository's object store — it looks like a partial clone — and gerve never fetches missing objects.")
+			return
+		}
 		s.errorPage(w, r, http.StatusInternalServerError, "error", "Something went wrong comparing those refs.")
 		return
 	}

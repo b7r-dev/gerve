@@ -320,18 +320,29 @@ func (r *Repo) LastCommitFor(ctx context.Context, hash, path string) *CommitInfo
 const recFmt = "%x1e%H%x1f%h%x1f%an%x1f%at%x1f%s"
 
 func (r *Repo) git(ctx context.Context, args ...string) ([]byte, error) {
-	return r.gitStdin(ctx, nil, args...)
+	return r.gitCall(ctx, nil, nil, args...)
+}
+
+// gitEnv is git with extra environment for one call — see noLazyFetch, which
+// keeps a partial clone from fetching during a diff.
+func (r *Repo) gitEnv(ctx context.Context, extraEnv []string, args ...string) ([]byte, error) {
+	return r.gitCall(ctx, nil, extraEnv, args...)
 }
 
 // gitStdin is git with a stdin payload. check-ignore takes its paths that way,
 // NUL-terminated, which is what keeps a name containing a newline from being
 // read as two paths.
 func (r *Repo) gitStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	out, err := r.runGit(ctx, args, nil, stdin)
+	return r.gitCall(ctx, stdin, nil, args...)
+}
+
+func (r *Repo) gitCall(ctx context.Context, stdin []byte, extraEnv []string, args ...string) ([]byte, error) {
+	out, err := r.runGit(ctx, args, extraEnv, stdin)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership") {
 		// Repo owned by another uid: retry with an override config. A
 		// safe.directory set via -c is not trusted by git; GIT_CONFIG_GLOBAL is.
-		if out2, err2 := r.runGit(ctx, args, safeDirEnv(), stdin); err2 == nil {
+		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
+		if out2, err2 := r.runGit(ctx, args, env, stdin); err2 == nil {
 			return out2, nil
 		}
 	}

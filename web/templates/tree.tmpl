@@ -26,7 +26,12 @@
     <td class="size muted">{{if not .IsDir}}{{sizefmt .Size}}{{end}}</td>
   </tr>
   {{else}}
-  <tr><td class="muted empty-row">empty directory</td></tr>
+  {{if not .Ignored}}<tr><td class="muted empty-row" colspan="5">empty directory</td></tr>{{end}}
+  {{end}}
+  {{if .Ignored}}
+  <tr>
+    <td class="muted" colspan="5">{{.Ignored}} ignored {{if eq .Ignored 1}}entry{{else}}entries{{end}} hidden</td>
+  </tr>
   {{end}}
 </table>
 {{if .Readme}}

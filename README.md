@@ -83,7 +83,9 @@ default. Read-only: gerve never writes to the repository.
 
 - **Tree pages** with per-file last-commit info, README rendering at every
   level, and — when browsing HEAD — a live worktree overlay: untracked files
-  appear, modified and deleted files are badged.
+  appear, modified and deleted files are badged. A directory that exists only
+  in the working tree is listed from disk, with gitignored entries counted but
+  never shown or served.
 - **Blob pages** with syntax highlighting, line numbers, image previews, and
   links to raw, blame, and history.
 - **Commit pages** with rename-aware patches, toggleable unified/side-by-side.

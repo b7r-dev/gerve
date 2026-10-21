@@ -22,11 +22,11 @@ func TestOpenBare(t *testing.T) {
 	if _, err := r.Resolve("HEAD"); err != nil {
 		t.Fatalf("resolve HEAD: %v", err)
 	}
-	entries, err := r.ListDir(t.Context(), mustHead(t, r), "")
+	listing, err := r.ListDir(t.Context(), mustHead(t, r), "")
 	if err != nil {
 		t.Fatalf("list dir: %v", err)
 	}
-	if len(entries) == 0 {
+	if len(listing.Entries) == 0 {
 		t.Error("bare repo tree empty")
 	}
 }

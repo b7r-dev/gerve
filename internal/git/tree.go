@@ -29,22 +29,36 @@ type Entry struct {
 	Last    *CommitInfo
 }
 
+// Listing is one directory's rows, plus anything the repository's ignore rules
+// kept out of them.
+type Listing struct {
+	Entries []Entry
+	// Ignored counts the children of a worktree-only directory that match the
+	// repository's ignore rules. They are never listed, only counted: a
+	// gitignored path is not part of the repository, and this page must not be
+	// the tool that puts the files people deliberately exclude — usually
+	// secrets — on a socket. The count keeps the listing from claiming to be
+	// the whole directory.
+	Ignored int
+}
+
 // ListDir lists one directory at the given commit, merging live worktree
 // state when the hash is HEAD's and a worktree exists. Directories that
 // exist only in the worktree (fully untracked) are listed from the
-// filesystem with every entry marked untracked.
-func (r *Repo) ListDir(ctx context.Context, refHash, dir string) ([]Entry, error) {
+// filesystem with every entry marked untracked, except the ones the ignore
+// rules cover, which are counted and left out.
+func (r *Repo) ListDir(ctx context.Context, refHash, dir string) (Listing, error) {
 	entries, gerr := r.gitEntries(refHash, dir)
 	overlay := r.OverlayActive(refHash)
 	if gerr != nil {
 		if overlay && errors.Is(gerr, ErrNotFound) {
-			ents, ferr := r.fsEntries(dir)
+			ents, ignored, ferr := r.fsEntries(ctx, dir)
 			if ferr != nil {
-				return nil, gerr
+				return Listing{}, gerr
 			}
-			return ents, nil
+			return Listing{Entries: ents, Ignored: ignored}, nil
 		}
-		return nil, gerr
+		return Listing{}, gerr
 	}
 	if overlay {
 		entries = r.applyOverlay(ctx, entries, dir)
@@ -66,7 +80,7 @@ func (r *Repo) ListDir(ctx context.Context, refHash, dir string) ([]Entry, error
 			}
 		}
 	}
-	return entries, nil
+	return Listing{Entries: entries}, nil
 }
 
 func (r *Repo) gitEntries(refHash, dir string) ([]Entry, error) {
@@ -180,19 +194,44 @@ func (r *Repo) applyOverlay(ctx context.Context, entries []Entry, dir string) []
 	return entries
 }
 
-// fsEntries lists a directory that exists only in the worktree.
-func (r *Repo) fsEntries(dir string) ([]Entry, error) {
+// fsEntries lists a directory that exists only in the worktree. Children the
+// repository's ignore rules cover are left out and counted instead: a
+// gitignored path is not part of the repository, and serving it would make this
+// the one tool that puts deliberately excluded files — usually secrets — on a
+// socket. The count lets the page say the listing is not the whole directory
+// rather than pretending it is empty.
+func (r *Repo) fsEntries(ctx context.Context, dir string) ([]Entry, int, error) {
 	abs, err := r.fsPath(dir)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	dirents, err := os.ReadDir(abs)
 	if err != nil {
-		return nil, ErrNotFound
+		return nil, 0, ErrNotFound
 	}
+
+	paths := make([]string, 0, len(dirents))
+	for _, d := range dirents {
+		if d.Name() != ".git" {
+			paths = append(paths, joinPath(dir, d.Name()))
+		}
+	}
+	ignored, err := r.ignoredAmong(ctx, paths)
+	if err != nil {
+		// A failed ignore check must not cost the whole page: fall back to
+		// listing everything, which is what this code did before it asked.
+		ignored = nil
+	}
+
 	entries := make([]Entry, 0, len(dirents))
+	hidden := 0
 	for _, d := range dirents {
 		if d.Name() == ".git" {
+			continue
+		}
+		p := joinPath(dir, d.Name())
+		if ignored[p] {
+			hidden++
 			continue
 		}
 		var size int64
@@ -203,14 +242,14 @@ func (r *Repo) fsEntries(dir string) ([]Entry, error) {
 		}
 		entries = append(entries, Entry{
 			Name:   d.Name(),
-			Path:   joinPath(dir, d.Name()),
+			Path:   p,
 			IsDir:  d.IsDir(),
 			Size:   size,
 			Change: Untracked,
 		})
 	}
 	sortEntries(entries)
-	return entries, nil
+	return entries, hidden, nil
 }
 
 // fsPath maps a slash-separated repo-relative path to an absolute path,

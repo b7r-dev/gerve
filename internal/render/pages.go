@@ -32,6 +32,7 @@ type Crumb struct {
 type TreePage struct {
 	Base
 	Entries    []git.Entry
+	Ignored    int // ignored children left out of a worktree-only listing
 	DirLast    *git.CommitInfo
 	Overlay    bool
 	Readme     template.HTML // set only when a README exists

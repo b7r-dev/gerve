@@ -271,30 +271,54 @@ func (r *Repo) LastCommitFor(ctx context.Context, hash, path string) *CommitInfo
 const recFmt = "%x1e%H%x1f%h%x1f%an%x1f%at%x1f%s"
 
 func (r *Repo) git(ctx context.Context, args ...string) ([]byte, error) {
-	out, err := r.runGit(ctx, args, nil)
+	return r.gitStdin(ctx, nil, args...)
+}
+
+// gitStdin is git with a stdin payload. check-ignore takes its paths that way,
+// NUL-terminated, which is what keeps a name containing a newline from being
+// read as two paths.
+func (r *Repo) gitStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
+	out, err := r.runGit(ctx, args, nil, stdin)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership") {
 		// Repo owned by another uid: retry with an override config. A
 		// safe.directory set via -c is not trusted by git; GIT_CONFIG_GLOBAL is.
-		if out2, err2 := r.runGit(ctx, args, safeDirEnv()); err2 == nil {
+		if out2, err2 := r.runGit(ctx, args, safeDirEnv(), stdin); err2 == nil {
 			return out2, nil
 		}
 	}
 	return out, err
 }
 
-func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string) ([]byte, error) {
+// gitError is a failed git invocation that keeps the exit status reachable
+// through errors.As. Some commands answer with it: check-ignore exits 1 to say
+// "none of these paths match", which is an answer, not a failure.
+type gitError struct {
+	cmd string
+	msg string
+	err error
+}
+
+func (e *gitError) Error() string {
+	if e.msg == "" {
+		return "git " + e.cmd + ": " + e.err.Error()
+	}
+	return "git " + e.cmd + ": " + e.msg
+}
+
+func (e *gitError) Unwrap() error { return e.err }
+
+func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string, stdin []byte) ([]byte, error) {
 	full := append([]string{"-c", "core.quotePath=false", "-c", "color.ui=never"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = r.root
 	cmd.Env = append(os.Environ(), extraEnv...)
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(errb.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("git %s: %s", args[0], msg)
+		return nil, &gitError{cmd: args[0], msg: strings.TrimSpace(errb.String()), err: err}
 	}
 	return out.Bytes(), nil
 }

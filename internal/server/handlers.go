@@ -51,7 +51,7 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	entries, err := s.repo.ListDir(ctx, hash, p)
+	listing, err := s.repo.ListDir(ctx, hash, p)
 	if err != nil {
 		s.errorPage(w, r, http.StatusNotFound, "path not found", "Nothing to list at "+p+" on "+ref+".")
 		return
@@ -60,26 +60,27 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 
 	page := render.TreePage{
 		Base:    s.newBase(ref, p, "tree"),
-		Entries: entries,
+		Entries: listing.Entries,
+		Ignored: listing.Ignored,
 		DirLast: s.repo.LastCommitFor(ctx, hash, p),
 		Overlay: overlay,
 	}
 
 	// README at this level, rendered from git or worktree per overlay state.
-	for i := range entries {
-		n := strings.ToLower(entries[i].Name)
-		if entries[i].IsDir {
+	for i := range listing.Entries {
+		n := strings.ToLower(listing.Entries[i].Name)
+		if listing.Entries[i].IsDir {
 			continue
 		}
 		if n == "readme.md" || n == "readme.markdown" || n == "readme.txt" || n == "readme" {
-			if bl, err := s.repo.Blob(ctx, hash, entries[i].Path, overlay); err == nil && len(bl.Content) <= 512<<10 {
+			if bl, err := s.repo.Blob(ctx, hash, listing.Entries[i].Path, overlay); err == nil && len(bl.Content) <= 512<<10 {
 				switch {
 				case strings.HasSuffix(n, ".md") || strings.HasSuffix(n, ".markdown"):
 					page.Readme = s.rnd.Markdown(bl.Content, s.linkRewriter(ref, hash, p))
 				default:
 					page.Readme = s.rnd.PlainText(bl.Content)
 				}
-				page.ReadmeName = entries[i].Name
+				page.ReadmeName = listing.Entries[i].Name
 			}
 			break
 		}

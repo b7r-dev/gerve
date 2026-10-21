@@ -18,6 +18,7 @@ const (
 	CompareMaxCommits  = 100
 	ComparePatchBudget = 8 << 20 // total bytes of patch text rendered
 	CompareFileCap     = 1 << 20 // bytes of patch text for one file
+	compareChunkBytes  = 4 << 20 // stdout cap for one `git diff` chunk
 	compareChunk       = 50      // paths per `git diff` invocation
 )
 
@@ -69,13 +70,17 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		rng.Head = h.CommitInfo
 	}
 	if baseHash == headHash {
-		rng.MergeBase = &rng.Base
+		if rng.Base.Hash != "" {
+			rng.MergeBase = &rng.Base
+		}
 		return rng, nil
 	}
 
 	// The merge base is what makes this a review diff rather than a tree diff.
 	// No common ancestor is an answer, not a failure: the diff degrades to
-	// tree-to-tree and the page says so.
+	// tree-to-tree and the page says so. Only exit 1 means that; any other
+	// failure must not be dressed up as an unrelated history, because that
+	// silently serves the tree-to-tree diff this page exists to avoid.
 	if out, err := r.git(ctx, "merge-base", baseHash, headHash); err == nil {
 		if mb := strings.TrimSpace(string(out)); isFullHex(mb) {
 			rng.From = mb
@@ -86,6 +91,8 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	} else if ctx.Err() != nil {
 		rng.Stopped = true
 		return rng, nil
+	} else if code, ok := exitCode(err); !ok || code != 1 {
+		return nil, r.statErr(err)
 	}
 
 	if out, err := r.git(ctx, "rev-list", "--left-right", "--count", baseHash+"..."+headHash); err == nil {
@@ -93,6 +100,9 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 			rng.Behind, _ = strconv.Atoi(f[0]) // commits only the base has
 			rng.Ahead, _ = strconv.Atoi(f[1])  // commits only the head has
 		}
+	} else if ctx.Err() != nil {
+		rng.Stopped = true
+		return rng, nil
 	}
 
 	// The commit list answers "what am I about to merge", so it is the branch's
@@ -118,7 +128,11 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	// partial clone that would fetch from the promisor remote — egress, which
 	// gerve promises never happens. Degrading rename detection beats fetching.
 	statArgs := func(mode string) []string {
-		args := []string{"diff", "--no-color", "--no-ext-diff", "-M", mode, "-z", rng.From, headHash}
+		// --literal-pathspecs: a path beginning with ":" is a pathname here, not
+		// pathspec magic. Without it, a file called ":notes.txt" silently drops
+		// out of a comparison — and a path that looks like ":(exclude)*" can
+		// empty a whole stat pass.
+		args := []string{"--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", "-M", mode, "-z", rng.From, headHash}
 		if scope != "" {
 			args = append(args, "--", scope)
 		}
@@ -192,9 +206,28 @@ func (r *Repo) promisorPacks() bool {
 
 // RangePatches is the rendered half of a comparison, keyed by rangeKey.
 type RangePatches struct {
-	ByKey     map[string]FileDiff
-	Truncated bool // a cap or the byte budget left files unrendered
-	Stopped   bool // the deadline cut the patch pass short
+	ByKey       map[string]FileDiff
+	Truncated   bool // a cap or the byte budget left files unrendered
+	Stopped     bool // the deadline cut the patch pass short
+	Unavailable bool // contents are not in the local object store (partial clone)
+}
+
+// Get returns the patch for a file, tolerating a rename that the chunked pass
+// paired differently from the stat pass: the card is still about the same path,
+// and a missing patch only means "not rendered", never a wrong file.
+func (p RangePatches) Get(f RangeFile) (FileDiff, bool) {
+	if d, ok := p.ByKey[f.Key()]; ok {
+		return d, true
+	}
+	for _, path := range []string{f.New, f.Old} {
+		if path == "" {
+			continue
+		}
+		if d, ok := p.ByKey["\x00"+path]; ok {
+			return d, true
+		}
+	}
+	return FileDiff{}, false
 }
 
 // RangePatch fetches patch text for the given files only, in chunks, inside a
@@ -213,7 +246,9 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 		if end > len(files) {
 			end = len(files)
 		}
-		args := []string{"diff", "--no-color", "--no-ext-diff", "-M", from, head, "--"}
+		// --literal-pathspecs for the same reason as the stat pass: a pathname
+		// that begins with ":" is data, not magic.
+		args := []string{"--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", "-M", from, head, "--"}
 		added := 0
 		for _, f := range files[i:end] {
 			// A rename contributes both sides, so detection works inside the
@@ -233,13 +268,28 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 		if added == 0 {
 			continue
 		}
-		out, err := r.gitEnv(ctx, noLazyFetch(), args...)
+		// The chunk's stdout is capped, not just its rendered total: a chunk of
+		// fifty large files can otherwise be hundreds of megabytes in memory
+		// before CompareFileCap is ever consulted.
+		limit := budget
+		if limit > compareChunkBytes {
+			limit = compareChunkBytes
+		}
+		out, err := r.gitLimit(ctx, noLazyFetch(), limit, args...)
 		if err != nil {
 			if ctx.Err() != nil {
 				res.Stopped = true
 				return res
 			}
-			res.Truncated = true
+			if errors.Is(err, errOutputTooLarge) {
+				res.Truncated = true
+				continue
+			}
+			if r.promisorPacks() {
+				res.Unavailable = true
+			} else {
+				res.Truncated = true
+			}
 			continue
 		}
 		for _, d := range ParsePatch(out).Files {
@@ -273,13 +323,13 @@ func parseNameStatusZ(out []byte) []statusRec {
 		}
 		switch s[0] {
 		case 'R', 'C':
-			if i+2 >= len(toks) {
+			if i+2 >= len(toks) || len(toks[i+2]) == 0 {
 				return recs
 			}
 			recs = append(recs, statusRec{status: s[:1], old: string(toks[i+1]), new: string(toks[i+2])})
 			i += 2
 		case 'A', 'D', 'M', 'T', 'U', 'X', 'B':
-			if i+1 >= len(toks) {
+			if i+1 >= len(toks) || len(toks[i+1]) == 0 {
 				return recs
 			}
 			p := string(toks[i+1])

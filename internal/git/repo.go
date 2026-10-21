@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,18 +125,24 @@ func (r *Repo) HasWorktree() bool { return r.worktree }
 // perfectly happy. Without the fallback that mismatch is a 404 on a commit the
 // page itself linked to.
 func (r *Repo) Resolve(name string) (string, error) {
+	return r.ResolveCtx(context.Background(), name)
+}
+
+// ResolveCtx is Resolve under the caller's deadline: a page with a time budget
+// must not spend it in a subprocess that was started without one.
+func (r *Repo) ResolveCtx(ctx context.Context, name string) (string, error) {
 	if name == "" {
 		return "", ErrNotFound
 	}
 	if h, err := r.r.ResolveRevision(plumbing.Revision(name)); err == nil {
 		return h.String(), nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// --end-of-options keeps a revision that begins with "-" from becoming a
 	// flag; ^{commit} peels annotated tags and refuses anything that is not a
 	// commit. One argv element, never a shell.
-	out, err := r.git(ctx, "rev-parse", "--verify", "--end-of-options", name+"^{commit}")
+	out, err := r.git(cctx, "rev-parse", "--verify", "--end-of-options", name+"^{commit}")
 	if err != nil {
 		return "", ErrNotFound
 	}
@@ -144,6 +151,18 @@ func (r *Repo) Resolve(name string) (string, error) {
 		return "", ErrNotFound
 	}
 	return h, nil
+}
+
+// ExistsAt reports whether p names a file or directory at refHash. It asks git
+// rather than go-git so a repository whose objects go-git cannot read still
+// answers — and so a path that exists only on one side of a comparison can still
+// scope it.
+func (r *Repo) ExistsAt(ctx context.Context, refHash, p string) bool {
+	if p == "" {
+		return true
+	}
+	_, err := r.git(ctx, "cat-file", "-e", refHash+":"+p)
+	return err == nil
 }
 
 // Head reports HEAD's branch (or detached state).
@@ -276,24 +295,43 @@ func (r *Repo) commitFromCLI(hash string) (*CommitMeta, error) {
 	defer cancel()
 	// NUL, not a printable separator: the body is multi-line and may contain
 	// anything printable. -z makes git terminate the record with NUL too.
-	const format = "%H%x00%an%x00%ct%x00%P%x00%s%x00%b"
+	const format = "%H%x00%an%x00%ct%x00%P%x00%B"
 	out, err := r.git(ctx, "show", "-s", "--no-color", "-z", "--format="+format, hash)
 	if err != nil {
 		return nil, ErrNotFound
 	}
 	f := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	if len(f) < 6 {
+	if len(f) < 5 {
 		return nil, ErrNotFound
 	}
 	m := &CommitMeta{Parents: strings.Fields(f[3])}
-	m.Hash, m.Short = hash, shortHash(hash)
+	m.Hash, m.Short = f[0], shortHash(f[0])
 	m.Author = f[1]
-	if sec, err := strconv.ParseInt(f[2], 10, 64); err == nil && sec > 0 {
+	if sec, err := strconv.ParseInt(f[2], 10, 64); err == nil {
 		m.Time = time.Unix(sec, 0)
 	}
-	m.Subject = strings.TrimSpace(f[4])
-	m.Body = strings.TrimSpace(f[5])
+	// Split the message the way the go-git path does: first line is the
+	// subject, everything after it is the body. %s would fold a wrapped first
+	// paragraph into one line and disagree with the same commit read by go-git.
+	msg := strings.TrimPrefix(f[4], "\n")
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		m.Subject = strings.TrimSpace(msg[:i])
+		m.Body = strings.TrimSpace(msg[i+1:])
+	} else {
+		m.Subject = strings.TrimSpace(msg)
+	}
 	return m, nil
+}
+
+// exitCode reports a git invocation's exit status when it has one. Some
+// commands answer with the status rather than stdout: merge-base exits 1 for
+// "no common ancestor", which is an answer, not a failure.
+func exitCode(err error) (int, bool) {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode(), true
+	}
+	return 0, false
 }
 
 // LastCommitFor returns the most recent commit touching a single path.
@@ -368,6 +406,56 @@ func (e *gitError) Error() string {
 func (e *gitError) Unwrap() error { return e.err }
 
 func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string, stdin []byte) ([]byte, error) {
+	var out bytes.Buffer
+	if err := r.runGitTo(ctx, args, extraEnv, stdin, &out); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// gitLimit is git with stdout capped. A command that would produce more fails
+// with errOutputTooLarge instead of being buffered and measured afterwards —
+// which is the only way a diff page can promise bounded memory rather than
+// bounded output.
+func (r *Repo) gitLimit(ctx context.Context, extraEnv []string, limit int, args ...string) ([]byte, error) {
+	w := &capWriter{limit: limit}
+	err := r.runGitTo(ctx, args, extraEnv, nil, w)
+	if w.overflow {
+		return nil, errOutputTooLarge
+	}
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership") {
+		w = &capWriter{limit: limit}
+		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
+		err = r.runGitTo(ctx, args, env, nil, w)
+		if w.overflow {
+			return nil, errOutputTooLarge
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return w.buf.Bytes(), nil
+}
+
+var errOutputTooLarge = errors.New("git output exceeded the cap")
+
+// capWriter stops accepting bytes at its limit and reports that as an error, so
+// the command is abandoned rather than allowed to fill memory.
+type capWriter struct {
+	buf      bytes.Buffer
+	limit    int
+	overflow bool
+}
+
+func (w *capWriter) Write(p []byte) (int, error) {
+	if w.buf.Len()+len(p) > w.limit {
+		w.overflow = true
+		return 0, errOutputTooLarge
+	}
+	return w.buf.Write(p)
+}
+
+func (r *Repo) runGitTo(ctx context.Context, args []string, extraEnv []string, stdin []byte, stdout io.Writer) error {
 	full := append([]string{"-c", "core.quotePath=false", "-c", "color.ui=never"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = r.root
@@ -375,12 +463,12 @@ func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string, std
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
-	var out, errb bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &errb
+	var errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = stdout, &errb
 	if err := cmd.Run(); err != nil {
-		return nil, &gitError{cmd: args[0], msg: strings.TrimSpace(errb.String()), err: err}
+		return &gitError{cmd: args[0], msg: strings.TrimSpace(errb.String()), err: err}
 	}
-	return out.Bytes(), nil
+	return nil
 }
 
 func safeDirEnv() []string {

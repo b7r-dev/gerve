@@ -130,14 +130,17 @@ type ComparePage struct {
 
 	Files       []FileCard
 	FilesMore   int // files in the range that were not shown
+	FilesTotal  int // shown plus not shown
 	NotRendered int // shown files whose patch could not be rendered
 	Adds, Dels  int
 
-	Scoped    string // path scope, "" for the whole range
-	WholeURL  string // this range with the scope removed
-	View      string // "unified" | "side"
-	Stopped   bool   // the time budget cut the comparison short
-	Truncated bool   // a size cap left files unrendered
+	Scoped       string // path scope, "" for the whole range
+	ScopeDropped string // a requested scope that names nothing in this range
+	WholeURL     string // this range with the scope removed
+	View         string // "unified" | "side"
+	Stopped      bool   // the time budget cut the comparison short
+	Truncated    bool   // a size cap left files unrendered
+	Unavailable  bool   // contents are not local (partial clone)
 
 	SwapURL    string
 	SideURL    string

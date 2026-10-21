@@ -8,7 +8,7 @@
     {{else}}<code class="path"><strong>{{.New}}</strong></code>{{end}}
     {{if .Binary}}<span class="muted">binary &mdash; not shown</span>
     {{else if .Rendered}}<span class="muted">+{{.Adds}} &minus;{{.Dels}}</span>
-    {{else}}<span class="muted">not rendered &mdash; too large for this page</span>{{end}}
+    {{else}}<span class="muted">not rendered</span>{{end}}
     {{if and .New (ne .Status "D")}}<a class="right" href="{{urlFor "blob" .Ref .New}}">view file @ {{short .Ref}} &rarr;</a>{{end}}
   </div>
   {{if and .Rendered (not .Binary)}}

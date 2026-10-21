@@ -38,7 +38,7 @@
     · {{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}}{{if .CommitsMore}} (first {{len .Commits}}){{end}}
   </div>
   <div class="meta-line">
-    <span class="strong">{{len .Files}} file{{if ne (len .Files) 1}}s{{end}} changed</span>
+    <span class="strong">{{.FilesTotal}} file{{if ne .FilesTotal 1}}s{{end}} changed</span>
     <span class="add">+{{.Adds}}</span>
     <span class="del">&minus;{{.Dels}}</span>
     <span class="viewsel">
@@ -48,9 +48,11 @@
     <a class="right" href="{{.SwapURL}}">swap base and head</a>
   </div>
   {{if .Scoped}}<div class="meta-line muted">scoped to <code>{{.Scoped}}</code> &mdash; <a href="{{.WholeURL}}">whole range</a></div>{{end}}
+  {{if .ScopeDropped}}<div class="meta-line muted">no <code>{{.ScopeDropped}}</code> in this range &mdash; showing the whole comparison</div>{{end}}
   {{if .Stopped}}<div class="banner banner-deleted">the time budget cut this comparison short &mdash; narrow it with a path scope</div>{{end}}
-  {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} files are listed but were not rendered{{else}}some patches were too large to render here{{end}} &mdash; each card links to its file at the head revision</div>{{end}}
-  {{if .FilesMore}}<div class="banner">{{.FilesMore}} more files are in this range but not listed &mdash; narrow it with a path scope</div>{{end}}
+  {{if .Unavailable}}<div class="banner banner-deleted">some file contents are not in this repository's object store &mdash; it looks like a partial clone &mdash; and gerve never fetches missing objects</div>{{end}}
+  {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} files are listed but were not rendered{{else}}some patches were not rendered{{end}} &mdash; too large for this page, or beyond its budget; each card links to its file at the head revision where it still exists</div>{{end}}
+  {{if .FilesMore}}<div class="banner">showing the first {{len .Files}} of {{.FilesTotal}} files &mdash; narrow it with a path scope</div>{{end}}
 </div>
 
 {{if .Commits}}
@@ -81,7 +83,7 @@
 {{end}}
 
 {{range .Files}}{{template "file-diff" .}}{{else}}
-<p class="card muted">no changes between these refs</p>
+<p class="card muted">{{if .Stopped}}this comparison did not finish{{else}}no changes between these refs{{end}}</p>
 {{end}}
 {{end}}
 {{end}}

@@ -349,30 +349,38 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 			"A compare URL looks like /compare/{base}...{head}. Three dots, because the diff is taken from the merge base, not from the two tips.")
 		return
 	}
-	baseHash, err := s.repo.Resolve(baseRef)
+	// One deadline covers resolving, scoping and the comparison itself: a page
+	// with a budget must not spend it in a subprocess started without one.
+	ctx, cancel := context.WithTimeout(r.Context(), compareTimeout)
+	defer cancel()
+
+	baseHash, err := s.repo.ResolveCtx(ctx, baseRef)
 	if err != nil {
 		s.errorPage(w, r, http.StatusNotFound, "unknown base", "No branch, tag, or commit named "+baseRef+".")
 		return
 	}
-	headHash, err := s.repo.Resolve(headRef)
+	headHash, err := s.repo.ResolveCtx(ctx, headRef)
 	if err != nil {
 		s.errorPage(w, r, http.StatusNotFound, "unknown head", "No branch, tag, or commit named "+headRef+".")
 		return
 	}
 
-	// A scope that names nothing is dropped and the page says which it used; the
-	// same rule search follows, for the same reason.
+	// A scope that names nothing is dropped and the page says so; the same rule
+	// search follows, for the same reason. Existence is asked of git, not go-git,
+	// so a shared clone answers — and a path the head deleted but the base still
+	// has is a legitimate thing to scope a review to.
 	scope, ok := validQueryParamPath(q.Get("path"))
-	if !ok || !s.repo.PathExists(r.Context(), headHash, scope) {
+	scopeDropped := ""
+	if !ok {
 		scope = ""
+	} else if scope != "" && !s.repo.ExistsAt(ctx, headHash, scope) && !s.repo.ExistsAt(ctx, baseHash, scope) {
+		scopeDropped, scope = scope, ""
 	}
 	view := "unified"
 	if q.Get("view") == "side" {
 		view = "side"
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), compareTimeout)
-	defer cancel()
 	rng, err := s.repo.Compare(ctx, baseHash, headHash, scope)
 	if err != nil {
 		if errors.Is(err, git.ErrObjectsUnavailable) {
@@ -386,28 +394,31 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 	patches := s.repo.RangePatch(ctx, rng.From, headHash, rng.Files)
 
 	page := render.ComparePage{
-		Base:        s.newBase(headRef, "", "compare"),
-		BaseRef:     baseRef,
-		HeadRef:     headRef,
-		BaseInfo:    infoPtr(rng.Base),
-		HeadInfo:    infoPtr(rng.Head),
-		MergeBase:   rng.MergeBase,
-		NoMergeBase: rng.MergeBase == nil,
-		Ahead:       rng.Ahead,
-		Behind:      rng.Behind,
-		Commits:     rng.Commits,
-		CommitsMore: rng.CommitsMore,
-		FilesMore:   rng.FilesMore,
-		Adds:        rng.Adds,
-		Dels:        rng.Dels,
-		Scoped:      scope,
-		WholeURL:    compareURL(baseRef, headRef, view, ""),
-		View:        view,
-		Stopped:     rng.Stopped || patches.Stopped,
-		Truncated:   patches.Truncated,
-		SwapURL:     compareURL(headRef, baseRef, view, scope),
-		SideURL:     compareURL(baseRef, headRef, "side", scope),
-		UnifiedURL:  compareURL(baseRef, headRef, "", scope),
+		Base:         s.newBase(headRef, "", "compare"),
+		BaseRef:      baseRef,
+		HeadRef:      headRef,
+		BaseInfo:     infoPtr(rng.Base),
+		HeadInfo:     infoPtr(rng.Head),
+		MergeBase:    commitPtr(rng.MergeBase),
+		NoMergeBase:  rng.MergeBase == nil,
+		Ahead:        rng.Ahead,
+		Behind:       rng.Behind,
+		Commits:      rng.Commits,
+		CommitsMore:  rng.CommitsMore,
+		FilesMore:    rng.FilesMore,
+		FilesTotal:   len(rng.Files) + rng.FilesMore,
+		Adds:         rng.Adds,
+		Dels:         rng.Dels,
+		Scoped:       scope,
+		ScopeDropped: scopeDropped,
+		WholeURL:     compareURL(baseRef, headRef, view, ""),
+		View:         view,
+		Stopped:      rng.Stopped || patches.Stopped,
+		Truncated:    patches.Truncated,
+		Unavailable:  patches.Unavailable,
+		SwapURL:      compareURL(headRef, baseRef, view, scope),
+		SideURL:      compareURL(baseRef, headRef, "side", scope),
+		UnifiedURL:   compareURL(baseRef, headRef, "", scope),
 	}
 	page.Files = make([]render.FileCard, 0, len(rng.Files))
 	for i, f := range rng.Files {
@@ -420,7 +431,7 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 			Anchor: "file-" + strconv.Itoa(i+1),
 			Side:   view == "side",
 		}
-		if d, ok := patches.ByKey[f.Key()]; ok && d.Patch != "" {
+		if d, ok := patches.Get(f); ok && d.Patch != "" {
 			card.FileView.FileDiff = d
 			card.Rendered = true
 			if view == "side" {
@@ -433,15 +444,25 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 		}
 		page.Files = append(page.Files, card)
 	}
+	// The header's search box starts scoped to what the page is about, as it does
+	// on the other pages; here that is the scope the comparison ran under.
+	page.Scope = scope
 	s.page(w, r, http.StatusOK, "compare", page)
 }
 
 // comparePicker is the chooser shown at /compare/ when no range was named, so
 // the feature is reachable without knowing the URL grammar.
 func (s *Server) comparePicker(w http.ResponseWriter, r *http.Request) {
+	// Look for "main" in the ref list rather than resolving it: a picker default
+	// is not worth a subprocess, and a master-only repo should not pay one.
 	base := s.def
-	if _, err := s.repo.Resolve("main"); err == nil {
-		base = "main"
+	if refs, err := s.repo.Refs(); err == nil {
+		for _, rf := range refs {
+			if rf.Kind == "branch" && rf.Name == "main" {
+				base = "main"
+				break
+			}
+		}
 	}
 	head := s.def
 	if b := s.repo.Head().Branch; b != "" {
@@ -506,6 +527,14 @@ func infoPtr(c git.CommitInfo) *git.CommitInfo {
 		return nil
 	}
 	return &c
+}
+
+// commitPtr is infoPtr for a pointer that may already be nil.
+func commitPtr(c *git.CommitInfo) *git.CommitInfo {
+	if c == nil || c.Hash == "" {
+		return nil
+	}
+	return c
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {

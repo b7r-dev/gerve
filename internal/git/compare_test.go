@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -188,8 +189,11 @@ func TestCompareCapsTheFileList(t *testing.T) {
 	if len(rng.Files) != CompareMaxFiles {
 		t.Errorf("files = %d, want the cap %d", len(rng.Files), CompareMaxFiles)
 	}
-	if rng.FilesMore == 0 {
-		t.Error("FilesMore is zero; the page cannot say what it left out")
+	if rng.FilesMore != 5 {
+		t.Errorf("FilesMore = %d, want 5", rng.FilesMore)
+	}
+	if len(rng.Files)+rng.FilesMore != CompareMaxFiles+5 {
+		t.Errorf("the total does not add up: %d + %d", len(rng.Files), rng.FilesMore)
 	}
 }
 
@@ -323,10 +327,116 @@ func TestCompareWithoutAMergeBase(t *testing.T) {
 		t.Errorf("self-compare = %+v, want no files and a merge base", self)
 	}
 
-	// A cancelled context returns rather than running the whole range.
+	// A cancelled context returns rather than running the whole range — and it
+	// says the answer was cut short, so the page cannot claim "no changes".
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := r.Compare(ctx, base, head, ""); err != nil {
+	cut, err := r.Compare(ctx, base, head, "")
+	if err != nil {
 		t.Errorf("cancelled compare returned an error: %v", err)
+	}
+	if cut != nil && !cut.Stopped {
+		t.Error("a cancelled comparison did not report Stopped")
+	}
+}
+
+// TestCompareParsesStatRecords pins the two NUL-separated formats against the
+// shapes that bite: a rename, a binary file, a path with a tab, a leading colon,
+// and a truncated record that must not panic.
+func TestCompareParsesStatRecords(t *testing.T) {
+	ns := parseNameStatusZ([]byte("M\x00plain.txt\x00R073\x00old.txt\x00new.txt\x00A\x00:colon.txt\x00D\x00gone.txt\x00"))
+	wantNS := []statusRec{
+		{status: "M", new: "plain.txt"},
+		{status: "R", old: "old.txt", new: "new.txt"},
+		{status: "A", new: ":colon.txt"},
+		{status: "D", old: "gone.txt"},
+	}
+	if !reflect.DeepEqual(ns, wantNS) {
+		t.Errorf("name-status = %+v, want %+v", ns, wantNS)
+	}
+
+	nums := parseNumstatZ([]byte("1\t2\tplain.txt\x001\t1\t\x00old.txt\x00new.txt\x00-\t-\timg.bin\x001\t3\tpa\tth.txt\x00"))
+	wantNums := []numstatRec{
+		{adds: 1, dels: 2, new: "plain.txt"},
+		{adds: 1, dels: 1, old: "old.txt", new: "new.txt"},
+		{binary: true, new: "img.bin"},
+		{adds: 1, dels: 3, new: "pa\tth.txt"},
+	}
+	if !reflect.DeepEqual(nums, wantNums) {
+		t.Errorf("numstat = %+v, want %+v", nums, wantNums)
+	}
+
+	// A rename record cut short yields nothing rather than a half file.
+	if got := parseNameStatusZ([]byte("R073\x00old.txt\x00")); len(got) != 0 {
+		t.Errorf("truncated rename parsed as %+v", got)
+	}
+}
+
+// TestCompareTreatsColonPathsAsData: without --literal-pathspecs git reads a
+// leading ":" as pathspec magic, and the file silently vanishes from a diff.
+func TestCompareTreatsColonPathsAsData(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) { gitOut(t, dir, args...) }
+	run("init", "-q", "-b", "main")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+	writeFile(t, dir, "plain.txt", "one\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "base")
+	base := gitOut(t, dir, "rev-parse", "HEAD")
+
+	run("checkout", "-q", "-b", "feature")
+	writeFile(t, dir, ":colon.txt", "colon\n")
+	run("add", "-A")
+	run("commit", "-q", "-m", "colon file")
+	head := gitOut(t, dir, "rev-parse", "HEAD")
+
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rng, err := r.Compare(t.Context(), base, head, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range rng.Files {
+		if f.New == ":colon.txt" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("a path beginning with ':' vanished from the diff: %+v", rng.Files)
+	}
+	patches := r.RangePatch(t.Context(), rng.From, head, rng.Files)
+	if _, ok := patches.Get(RangeFile{Status: "A", New: ":colon.txt"}); !ok {
+		t.Error("the colon path was listed but its patch was not fetched")
+	}
+}
+
+// TestGitLimitStopsAtTheCap: the cap is enforced while git is writing, not after
+// the whole output has been buffered, which is the only way the page's memory is
+// bounded rather than its display.
+func TestGitLimitStopsAtTheCap(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) { gitOut(t, dir, args...) }
+	run("init", "-q", "-b", "main")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+	for i := 0; i < 5; i++ {
+		writeFile(t, dir, "f.txt", strings.Repeat("x\n", 100+i))
+		run("add", "-A")
+		run("commit", "-q", "-m", "c")
+	}
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.gitLimit(t.Context(), nil, 8, "log", "--format=%H"); !errors.Is(err, errOutputTooLarge) {
+		t.Fatalf("err = %v, want errOutputTooLarge", err)
+	}
+	out, err := r.gitLimit(t.Context(), nil, 1<<20, "log", "--format=%H")
+	if err != nil || len(out) == 0 {
+		t.Fatalf("under the cap: %d bytes, %v", len(out), err)
 	}
 }

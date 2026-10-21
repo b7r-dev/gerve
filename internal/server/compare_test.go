@@ -112,6 +112,25 @@ func TestCompareSlashedRefsAndSelfCompare(t *testing.T) {
 	}
 }
 
+func TestCompareScopeThatNamesNothingIsReported(t *testing.T) {
+	ts, _ := newTestServer(t, compareServerFixture(t))
+
+	_, _, body := doReq(t, ts.URL+"/compare/main...feature?path=no/such", nil)
+	if !strings.Contains(body, "showing the whole comparison") {
+		t.Error("a scope that names nothing was dropped silently")
+	}
+	if strings.Contains(body, "scoped to") {
+		t.Error("the page claims a scope it did not use")
+	}
+
+	// A path the head deleted is a legitimate thing to scope a review to: the
+	// removal is the change being reviewed.
+	_, _, gone := doReq(t, ts.URL+"/compare/main...feature?path=gone.txt", nil)
+	if !strings.Contains(gone, "scoped to") {
+		t.Error("a path that only the base still has was not allowed as a scope")
+	}
+}
+
 func TestComparePageRevalidates(t *testing.T) {
 	ts, _ := newTestServer(t, compareServerFixture(t))
 	status, hdr, _ := doReq(t, ts.URL+"/compare/main...feature", nil)

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,15 +116,34 @@ func (r *Repo) HasWorktree() bool { return r.worktree }
 
 // Resolve maps any revision spec (branch, tag, HEAD, short hash) to a full
 // object hash. Annotated tags are peeled to their commit.
+//
+// go-git answers first — it is the fast path and needs no subprocess — with the
+// git CLI behind it, because go-git cannot read every object git can: a shared
+// clone keeps its objects in objects/info/alternates, which go-git does not
+// follow, so a hash the log just printed can be unresolvable here while git is
+// perfectly happy. Without the fallback that mismatch is a 404 on a commit the
+// page itself linked to.
 func (r *Repo) Resolve(name string) (string, error) {
 	if name == "" {
 		return "", ErrNotFound
 	}
-	h, err := r.r.ResolveRevision(plumbing.Revision(name))
+	if h, err := r.r.ResolveRevision(plumbing.Revision(name)); err == nil {
+		return h.String(), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// --end-of-options keeps a revision that begins with "-" from becoming a
+	// flag; ^{commit} peels annotated tags and refuses anything that is not a
+	// commit. One argv element, never a shell.
+	out, err := r.git(ctx, "rev-parse", "--verify", "--end-of-options", name+"^{commit}")
 	if err != nil {
 		return "", ErrNotFound
 	}
-	return h.String(), nil
+	h := strings.TrimSpace(string(out))
+	if !isFullHex(h) {
+		return "", ErrNotFound
+	}
+	return h, nil
 }
 
 // Head reports HEAD's branch (or detached state).
@@ -225,7 +245,7 @@ func (r *Repo) Commit(rev string) (*CommitMeta, error) {
 	}
 	c, err := r.r.CommitObject(plumbing.NewHash(h))
 	if err != nil {
-		return nil, ErrNotFound
+		return r.commitFromCLI(h)
 	}
 	m := &CommitMeta{Parents: make([]string, 0, len(c.ParentHashes))}
 	for _, p := range c.ParentHashes {
@@ -244,6 +264,35 @@ func (r *Repo) Commit(rev string) (*CommitMeta, error) {
 	} else {
 		m.Subject = strings.TrimSpace(msg)
 	}
+	return m, nil
+}
+
+// commitFromCLI builds CommitMeta with `git show` when go-git cannot read the
+// object — the same reason Resolve has a fallback. The fields and the time
+// choice (committer, falling back to author) match the go-git path, so a page
+// does not change shape depending on which side answered.
+func (r *Repo) commitFromCLI(hash string) (*CommitMeta, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// NUL, not a printable separator: the body is multi-line and may contain
+	// anything printable. -z makes git terminate the record with NUL too.
+	const format = "%H%x00%an%x00%ct%x00%P%x00%s%x00%b"
+	out, err := r.git(ctx, "show", "-s", "--no-color", "-z", "--format="+format, hash)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	f := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	if len(f) < 6 {
+		return nil, ErrNotFound
+	}
+	m := &CommitMeta{Parents: strings.Fields(f[3])}
+	m.Hash, m.Short = hash, shortHash(hash)
+	m.Author = f[1]
+	if sec, err := strconv.ParseInt(f[2], 10, 64); err == nil && sec > 0 {
+		m.Time = time.Unix(sec, 0)
+	}
+	m.Subject = strings.TrimSpace(f[4])
+	m.Body = strings.TrimSpace(f[5])
 	return m, nil
 }
 

@@ -38,6 +38,12 @@ refs from the header switcher while deep in
 the new branch. Path-preserving ref switching is the moment she decides to
 keep gerve open all week.
 
+**9:45 AM.** Before switching she opens **compare** for `main...ramon/webhooks`,
+scoped to `services/payments`. The diff starts from the merge base, so it is the
+branch's own work rather than main's; the commit list and a jump-to-file index
+sit above the cards. **Delight:** she reviews the change without disturbing her
+own checkout, which is exactly what the forge would have asked of her.
+
 **10:15 AM.** She wants "recent commits touching this directory". Not in v1 —
 she copies the path, goes to Commits, and browser-finds. **Gap:** the
 highest-value missing feature; goes on the roadmap.
@@ -60,6 +66,8 @@ names.
 - Lazy per-directory tree listing with caching (never a full-repo walk).
 - Nested READMEs rendered on tree pages.
 - **Path-preserving ref switching** — switch branches, keep your place.
+- Compare two refs from their merge base, path-scoped, with the commit list and a
+  jump-to-file index.
 - Large-file handling: metadata + raw download, never a frozen tab.
 - Symlink entries: show the target, don't follow it.
 - Breadcrumbs; clean URLs.

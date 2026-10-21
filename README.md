@@ -89,6 +89,9 @@ default. Read-only: gerve never writes to the repository.
 - **Blob pages** with syntax highlighting, line numbers, image previews, and
   links to raw, blame, and history.
 - **Commit pages** with rename-aware patches, toggleable unified/side-by-side.
+- **Compare** any two refs — `/compare/main...feature` — with the diff taken from
+  their merge base, the same thing a pull request calls "files changed". The
+  commit list, per-file cards, and a jump-to-file index come with it.
 - **Commit log**, including directory-scoped (`?path=`) and `--follow` file
   history.
 - **Search** for a literal string, scoped to a directory or the whole

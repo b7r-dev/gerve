@@ -69,6 +69,7 @@ implementation.
 | OQ6 | Multi-repo index mode | **v2.** |
 | OQ7 | Auto-open browser | **`--open` opt-in**; always print the URL. |
 | OQ8 | Directory-scoped commit log | **v1** (upgraded from the v2 recommendation during review). |
+| OQ9 | Compare two refs (branch-vs-branch diff)? | **v1, three-dot.** `/compare/{base}...{head}` diffs from the merge base and names it on the page; unrelated histories degrade to tree-to-tree with a chip. Two-dot URLs are rejected with copy that explains the difference. |
 
 Additional decisions from review:
 

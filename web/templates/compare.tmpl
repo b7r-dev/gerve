@@ -1,0 +1,87 @@
+{{define "title"}}{{if .Pick}}compare{{else}}{{.BaseRef}}...{{.HeadRef}}{{end}} · {{.RepoName}}{{end}}
+{{define "content"}}
+<nav class="crumbs">
+  <a href="/refs">{{.RepoName}} refs</a>
+  <span class="sep">/</span>
+  <span>{{if .Pick}}compare{{else}}<code>{{.BaseRef}}...{{.HeadRef}}</code>{{end}}</span>
+</nav>
+
+{{if .Pick}}
+<div class="card">
+  <h2>compare two refs</h2>
+  <p class="muted">The diff is taken from the merge base, so only the head's own changes are shown — the same thing a pull request calls “files changed”.</p>
+  <form class="compareform" action="/compare/" method="get">
+    <label for="cmpBase">base</label>
+    <select id="cmpBase" name="base">
+      {{range .Refs}}<option value="{{.Name}}"{{if eq .Name $.PickBase}} selected{{end}}>{{.Kind}}: {{.Name}}</option>{{end}}
+    </select>
+    <span class="muted">...</span>
+    <label for="cmpHead">head</label>
+    <select id="cmpHead" name="head">
+      {{range .Refs}}<option value="{{.Name}}"{{if eq .Name $.PickHead}} selected{{end}}>{{.Kind}}: {{.Name}}</option>{{end}}
+    </select>
+    <button type="submit">compare</button>
+  </form>
+</div>
+{{else}}
+<div class="card commit-head">
+  <h2>changes from <code>{{.BaseRef}}</code> to <code>{{.HeadRef}}</code></h2>
+  <div class="meta-line">
+    {{with .BaseInfo}}<a href="/commit/{{.Hash}}">{{short .Hash}}</a> <span class="muted">{{.Subject}}</span>{{end}}
+    <span class="muted">&rarr;</span>
+    {{with .HeadInfo}}<a href="/commit/{{.Hash}}">{{short .Hash}}</a> <span class="muted">{{.Subject}}</span>{{end}}
+  </div>
+  <div class="meta-line muted">
+    {{if .MergeBase}}merge base <a href="/commit/{{.MergeBase.Hash}}">{{short .MergeBase.Hash}}</a>
+    {{else}}<span class="chip chip-warn">no common ancestor &mdash; compared tree to tree</span>{{end}}
+    {{if .Ahead}}· {{.Ahead}} ahead{{end}}{{if .Behind}} · {{.Behind}} behind{{end}}
+    · {{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}}{{if .CommitsMore}} (first {{len .Commits}}){{end}}
+  </div>
+  <div class="meta-line">
+    <span class="strong">{{len .Files}} file{{if ne (len .Files) 1}}s{{end}} changed</span>
+    <span class="add">+{{.Adds}}</span>
+    <span class="del">&minus;{{.Dels}}</span>
+    <span class="viewsel">
+      {{if eq .View "side"}}<a href="{{.UnifiedURL}}">unified</a> <span class="muted">| side-by-side</span>
+      {{else}}<span class="muted">unified |</span> <a href="{{.SideURL}}">side-by-side</a>{{end}}
+    </span>
+    <a class="right" href="{{.SwapURL}}">swap base and head</a>
+  </div>
+  {{if .Scoped}}<div class="meta-line muted">scoped to <code>{{.Scoped}}</code> &mdash; <a href="{{.WholeURL}}">whole range</a></div>{{end}}
+  {{if .Stopped}}<div class="banner banner-deleted">the time budget cut this comparison short &mdash; narrow it with a path scope</div>{{end}}
+  {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} files are listed but were not rendered{{else}}some patches were too large to render here{{end}} &mdash; each card links to its file at the head revision</div>{{end}}
+  {{if .FilesMore}}<div class="banner">{{.FilesMore}} more files are in this range but not listed &mdash; narrow it with a path scope</div>{{end}}
+</div>
+
+{{if .Commits}}
+<details class="card">
+  <summary class="panel-label">{{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}} in the range{{if .CommitsMore}} (first {{len .Commits}}){{end}}</summary>
+  <table class="listing commits">
+    {{range .Commits}}
+    <tr>
+      <td class="hash"><a href="/commit/{{.Hash}}">{{short .Hash}}</a></td>
+      <td class="msg"><a class="strong" href="/commit/{{.Hash}}">{{.Subject}}</a></td>
+      <td class="author muted">{{.Author}}</td>
+      <td class="age muted">{{timeago .Time}}</td>
+    </tr>
+    {{end}}
+  </table>
+</details>
+{{end}}
+
+{{if gt (len .Files) 1}}
+<details class="card filejump">
+  <summary class="panel-label">jump to a file</summary>
+  <ul>
+    {{range .Files}}
+    <li><a href="#{{.Anchor}}">{{if eq .Status "R"}}{{.Old}} &rarr; {{.New}}{{else if .New}}{{.New}}{{else}}{{.Old}}{{end}}</a></li>
+    {{end}}
+  </ul>
+</details>
+{{end}}
+
+{{range .Files}}{{template "file-diff" .}}{{else}}
+<p class="card muted">no changes between these refs</p>
+{{end}}
+{{end}}
+{{end}}

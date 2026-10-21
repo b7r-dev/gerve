@@ -297,23 +297,210 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 	// and ref switcher all operate on the reviewed commit, not the default
 	// ref — otherwise links silently show a different file version.
 	page := render.CommitPage{Base: s.newBase(meta.Hash, "", "tree"), Meta: meta, View: view, Merge: merge}
-	page.Files = make([]render.FileView, 0, len(diff.Files))
+	page.Files = make([]render.FileCard, 0, len(diff.Files))
 	for _, f := range diff.Files {
-		fv := render.FileView{FileDiff: f}
+		card := render.FileCard{
+			FileView: render.FileView{FileDiff: f},
+			Ref:      meta.Hash,
+			Side:     view == "side",
+		}
 		if !f.Binary && f.Patch != "" {
-			fv.Rows = git.UnifiedRows(f.Patch)
+			card.Rendered = true
+			card.Rows = git.UnifiedRows(f.Patch)
 			if view == "side" {
-				fv.Sb = git.SideBySide(f.Patch)
+				card.Sb = git.SideBySide(f.Patch)
 			}
 		}
 		page.Adds += f.Adds
 		page.Dels += f.Dels
-		page.Files = append(page.Files, fv)
+		page.Files = append(page.Files, card)
 	}
 	page.SideURL = "/commit/" + rev + "?view=side"
 	page.UnifiedURL = "/commit/" + rev
 
 	s.page(w, r, http.StatusOK, "commit", page)
+}
+
+// compareTimeout bounds one comparison. The stat pass is cheap; the patch pass
+// is bounded by bytes, and this deadline is the backstop that stops a huge range
+// from becoming a request that never answers. Like search, it is not the page
+// budget — the page says when the answer was cut short.
+const compareTimeout = 10 * time.Second
+
+func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
+	rest := strings.Trim(strings.TrimPrefix(r.URL.Path, "/compare"), "/")
+	q := r.URL.Query()
+
+	if rest == "" {
+		if base, head := q.Get("base"), q.Get("head"); base != "" && head != "" {
+			// The picker's form is a plain GET, so it arrives as a query rather
+			// than a path; canonicalise it so the address bar shows what people
+			// paste to each other.
+			http.Redirect(w, r, compareURL(base, head, q.Get("view"), q.Get("path")), http.StatusFound)
+			return
+		}
+		s.comparePicker(w, r)
+		return
+	}
+
+	baseRef, headRef, ok := parseRange(rest)
+	if !ok {
+		s.errorPage(w, r, http.StatusBadRequest, "bad compare URL",
+			"A compare URL looks like /compare/{base}...{head}. Three dots, because the diff is taken from the merge base, not from the two tips.")
+		return
+	}
+	baseHash, err := s.repo.Resolve(baseRef)
+	if err != nil {
+		s.errorPage(w, r, http.StatusNotFound, "unknown base", "No branch, tag, or commit named "+baseRef+".")
+		return
+	}
+	headHash, err := s.repo.Resolve(headRef)
+	if err != nil {
+		s.errorPage(w, r, http.StatusNotFound, "unknown head", "No branch, tag, or commit named "+headRef+".")
+		return
+	}
+
+	// A scope that names nothing is dropped and the page says which it used; the
+	// same rule search follows, for the same reason.
+	scope, ok := validQueryParamPath(q.Get("path"))
+	if !ok || !s.repo.PathExists(r.Context(), headHash, scope) {
+		scope = ""
+	}
+	view := "unified"
+	if q.Get("view") == "side" {
+		view = "side"
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), compareTimeout)
+	defer cancel()
+	rng, err := s.repo.Compare(ctx, baseHash, headHash, scope)
+	if err != nil {
+		s.errorPage(w, r, http.StatusInternalServerError, "error", "Something went wrong comparing those refs.")
+		return
+	}
+	patches := s.repo.RangePatch(ctx, rng.From, headHash, rng.Files)
+
+	page := render.ComparePage{
+		Base:        s.newBase(headRef, "", "compare"),
+		BaseRef:     baseRef,
+		HeadRef:     headRef,
+		BaseInfo:    infoPtr(rng.Base),
+		HeadInfo:    infoPtr(rng.Head),
+		MergeBase:   rng.MergeBase,
+		NoMergeBase: rng.MergeBase == nil,
+		Ahead:       rng.Ahead,
+		Behind:      rng.Behind,
+		Commits:     rng.Commits,
+		CommitsMore: rng.CommitsMore,
+		FilesMore:   rng.FilesMore,
+		Adds:        rng.Adds,
+		Dels:        rng.Dels,
+		Scoped:      scope,
+		WholeURL:    compareURL(baseRef, headRef, view, ""),
+		View:        view,
+		Stopped:     rng.Stopped || patches.Stopped,
+		Truncated:   patches.Truncated,
+		SwapURL:     compareURL(headRef, baseRef, view, scope),
+		SideURL:     compareURL(baseRef, headRef, "side", scope),
+		UnifiedURL:  compareURL(baseRef, headRef, "", scope),
+	}
+	page.Files = make([]render.FileCard, 0, len(rng.Files))
+	for i, f := range rng.Files {
+		card := render.FileCard{
+			FileView: render.FileView{FileDiff: git.FileDiff{
+				Status: f.Status, Old: f.Old, New: f.New,
+				Adds: f.Adds, Dels: f.Dels, Binary: f.Binary,
+			}},
+			Ref:    headHash,
+			Anchor: "file-" + strconv.Itoa(i+1),
+			Side:   view == "side",
+		}
+		if d, ok := patches.ByKey[f.Key()]; ok && d.Patch != "" {
+			card.FileView.FileDiff = d
+			card.Rendered = true
+			if view == "side" {
+				card.Sb = git.SideBySide(d.Patch)
+			} else {
+				card.Rows = git.UnifiedRows(d.Patch)
+			}
+		} else if !f.Binary {
+			page.NotRendered++
+		}
+		page.Files = append(page.Files, card)
+	}
+	s.page(w, r, http.StatusOK, "compare", page)
+}
+
+// comparePicker is the chooser shown at /compare/ when no range was named, so
+// the feature is reachable without knowing the URL grammar.
+func (s *Server) comparePicker(w http.ResponseWriter, r *http.Request) {
+	base := s.def
+	if _, err := s.repo.Resolve("main"); err == nil {
+		base = "main"
+	}
+	head := s.def
+	if b := s.repo.Head().Branch; b != "" {
+		head = b
+	}
+	s.page(w, r, http.StatusOK, "compare", render.ComparePage{
+		Base:     s.newBase(s.def, "", "compare"),
+		Pick:     true,
+		PickBase: base,
+		PickHead: head,
+	})
+}
+
+// parseRange splits "{base}...{head}". Three dots and not two: git forbids ".."
+// inside a ref name, so the separator cannot be ambiguous, and two-dot means
+// tree-to-tree, which this page deliberately does not offer.
+func parseRange(rest string) (base, head string, ok bool) {
+	i := strings.Index(rest, "...")
+	if i <= 0 || i+3 >= len(rest) {
+		return "", "", false
+	}
+	base, head = rest[:i], rest[i+3:]
+	for _, name := range []string{base, head} {
+		for _, seg := range strings.Split(name, "/") {
+			switch seg {
+			case "", ".", "..", ".git":
+				return "", "", false
+			}
+		}
+	}
+	return base, head, true
+}
+
+// compareURL builds /compare/{base}...{head}, escaping each ref segment so a
+// slashed branch name stays a path rather than an escaped slash.
+func compareURL(base, head, view, scope string) string {
+	u := "/compare/" + escapeRefPath(base) + "..." + escapeRefPath(head)
+	q := url.Values{}
+	if view == "side" {
+		q.Set("view", "side")
+	}
+	if scope != "" {
+		q.Set("path", scope)
+	}
+	if enc := q.Encode(); enc != "" {
+		u += "?" + enc
+	}
+	return u
+}
+
+func escapeRefPath(name string) string {
+	segs := strings.Split(name, "/")
+	for i := range segs {
+		segs[i] = url.PathEscape(segs[i])
+	}
+	return strings.Join(segs, "/")
+}
+
+// infoPtr lets the template tell "no commit info" from a zero value.
+func infoPtr(c git.CommitInfo) *git.CommitInfo {
+	if c.Hash == "" {
+		return nil
+	}
+	return &c
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {

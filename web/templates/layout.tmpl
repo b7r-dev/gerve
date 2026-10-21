@@ -25,6 +25,7 @@ if(t==="light"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme
       {{if .Scope}}<input type="hidden" name="path" value="{{.Scope}}">{{end}}
     </form>
     <a class="searchlink" href="/search/{{urlPathEscape .Ref}}">search</a>
+    {{if ne .Route "compare"}}
     <form class="refjump" action="/refs" method="get">
       <select id="refswitch" data-base="{{.Route}}" data-path="{{.Path}}" data-query="{{.Query}}" data-scope="{{.Scope}}" aria-label="switch ref">
         <option value="{{.Ref}}" selected>{{.Ref}}</option>
@@ -32,6 +33,7 @@ if(t==="light"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme
       </select>
       <noscript><button type="submit">go</button></noscript>
     </form>
+    {{end}}
     <a href="/commits/{{urlPathEscape .Ref}}">commits</a>
     {{end}}
     <a href="/refs">refs</a>

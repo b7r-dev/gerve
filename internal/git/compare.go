@@ -27,6 +27,9 @@ type RangeFile struct {
 	Binary     bool
 }
 
+// Key joins this file with its rendered patch in RangePatches.ByKey.
+func (f RangeFile) Key() string { return rangeKey(f.Old, f.New, f.Status) }
+
 // Range is what changed between two commits, computed in two passes: a stat
 // pass that decides what can be shown, then patches for the files that survived
 // the caps. The diff is against the merge base, not the base tip — three-dot

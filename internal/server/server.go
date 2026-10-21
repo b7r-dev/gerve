@@ -56,6 +56,7 @@ func New(repo *git.Repo, rnd *render.Renderer, opts Options) *Server {
 	mux.HandleFunc("GET /blame/", s.blame)
 	mux.HandleFunc("GET /raw/", s.raw)
 	mux.HandleFunc("GET /commits/", s.commits)
+	mux.HandleFunc("GET /compare/", s.compare)
 	mux.HandleFunc("GET /commit/", s.commit)
 	mux.HandleFunc("GET /history/", s.history)
 	mux.HandleFunc("GET /search/", s.search)

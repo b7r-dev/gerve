@@ -91,16 +91,60 @@ type FileView struct {
 	Sb   []git.SideHunk // side-by-side hunks
 }
 
+// FileCard is one rendered file on a patch page. Ref is the revision the "view
+// file" link opens — the commit being viewed, or the head of a comparison.
+// Anchor and Index exist for a comparison's jump list; both are empty on a
+// commit page.
+type FileCard struct {
+	FileView
+	Ref      string
+	Anchor   string
+	Side     bool // render side-by-side instead of unified
+	Rendered bool // a patch was attached; false means binary or over a cap
+}
+
 type CommitPage struct {
 	Base
 	Meta       *git.CommitMeta
-	Files      []FileView
+	Files      []FileCard
 	Adds, Dels int
 	View       string // "unified" | "side"
 	Merge      bool
 
 	SideURL    string
 	UnifiedURL string
+}
+
+// ComparePage is one range between two refs. Pick is the chooser shown when the
+// URL named no range; the rest describes the comparison that was run.
+type ComparePage struct {
+	Base
+	BaseRef, HeadRef   string
+	BaseInfo, HeadInfo *git.CommitInfo
+	MergeBase          *git.CommitInfo
+	NoMergeBase        bool
+
+	Ahead, Behind int
+	Commits       []git.CommitInfo
+	CommitsMore   bool
+
+	Files       []FileCard
+	FilesMore   int // files in the range that were not shown
+	NotRendered int // shown files whose patch could not be rendered
+	Adds, Dels  int
+
+	Scoped    string // path scope, "" for the whole range
+	WholeURL  string // this range with the scope removed
+	View      string // "unified" | "side"
+	Stopped   bool   // the time budget cut the comparison short
+	Truncated bool   // a size cap left files unrendered
+
+	SwapURL    string
+	SideURL    string
+	UnifiedURL string
+
+	Pick               bool
+	PickBase, PickHead string
 }
 
 type RefsEntry struct {

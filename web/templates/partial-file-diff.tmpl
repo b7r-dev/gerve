@@ -1,0 +1,41 @@
+{{define "file-diff"}}
+<div class="card file"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
+  <div class="fhead">
+    <span class="badge st-{{.Status}}">{{.Status}}</span>
+    {{if eq .Status "R"}}<code class="path"><s>{{.Old}}</s> &rarr; <strong>{{.New}}</strong></code>
+    {{else if eq .Status "D"}}<code class="path"><s>{{.Old}}</s></code>
+    {{else if eq .Status "A"}}<code class="path"><strong>{{.New}}</strong></code>
+    {{else}}<code class="path"><strong>{{.New}}</strong></code>{{end}}
+    {{if .Binary}}<span class="muted">binary &mdash; not shown</span>
+    {{else if .Rendered}}<span class="muted">+{{.Adds}} &minus;{{.Dels}}</span>
+    {{else}}<span class="muted">not rendered &mdash; too large for this page</span>{{end}}
+    {{if and .New (ne .Status "D")}}<a class="right" href="{{urlFor "blob" .Ref .New}}">view file @ {{short .Ref}} &rarr;</a>{{end}}
+  </div>
+  {{if and .Rendered (not .Binary)}}
+  {{if .Side}}
+    <div class="diff-scroll">
+    {{range .Sb}}
+    <div class="hunk-h">{{.Header}}</div>
+    <table class="diff side">
+      {{$r := .Right}}
+      {{range $i, $l := .Left}}
+      <tr>
+        <td class="dn">{{if $l.Num}}{{$l.Num}}{{end}}</td>
+        <td class="dc d-{{kindClass $l.Kind}}">{{$l.Text}}</td>
+        <td class="dn">{{with index $r $i}}{{if .Num}}{{.Num}}{{end}}{{end}}</td>
+        <td class="dc d-{{kindClass (index $r $i).Kind}}">{{(index $r $i).Text}}</td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+    </div>
+  {{else}}
+    <div class="diff-scroll">
+    <table class="diff">
+      {{range .Rows}}<tr class="d-{{kindClass .Kind}}"><td class="dn">{{if .Old}}{{.Old}}{{end}}</td><td class="dn">{{if .New}}{{.New}}{{end}}</td><td class="dc">{{.Text}}</td></tr>{{end}}
+    </table>
+    </div>
+  {{end}}
+  {{end}}
+</div>
+{{end}}

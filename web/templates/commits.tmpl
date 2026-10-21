@@ -7,6 +7,14 @@
   — <a href="{{urlFor "tree" .Ref .Path}}">back to tree</a>
 </div>
 {{end}}
+<form class="compareform" action="/compare/" method="get">
+  <input type="hidden" name="base" value="{{.Ref}}">
+  <span class="muted">compare <code>{{.Ref}}</code> with</span>
+  <select name="head" aria-label="head ref">
+    {{range .Refs}}<option value="{{.Name}}">{{.Kind}}: {{.Name}}</option>{{end}}
+  </select>
+  <button type="submit">go</button>
+</form>
 <table class="listing commits">
   {{range .Log.Commits}}
   <tr>

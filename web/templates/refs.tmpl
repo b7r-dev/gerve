@@ -1,5 +1,16 @@
 {{define "title"}}refs · {{.RepoName}}{{end}}
 {{define "content"}}
+<form class="compareform" action="/compare/" method="get">
+  <span class="muted">compare</span>
+  <select name="base" aria-label="base ref">
+    {{range .Refs}}<option value="{{.Name}}">{{.Kind}}: {{.Name}}</option>{{end}}
+  </select>
+  <span class="muted">...</span>
+  <select name="head" aria-label="head ref">
+    {{range .Refs}}<option value="{{.Name}}">{{.Kind}}: {{.Name}}</option>{{end}}
+  </select>
+  <button type="submit">go</button>
+</form>
 <h2 class="panel-label">branches</h2>
 <table class="listing">
   {{range .Branches}}

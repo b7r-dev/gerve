@@ -812,7 +812,7 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
 .search input[name="q"] { min-width: 12rem; }
 .search input:hover { border-color: var(--border-2); }
 .search input::placeholder { color: var(--fg-3); }
-.search button {
+.search button, .compareform button {
   background: var(--pool-tint);
   color: var(--pool-bright);
   border: 1px solid var(--border-1);
@@ -822,7 +822,29 @@ table.diff.side td:nth-child(3) { border-left: 1px solid var(--border-1); }
   cursor: pointer;
   transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.search button:hover { color: var(--fg-1); border-color: var(--border-2); }
+.search button:hover, .compareform button:hover { color: var(--fg-1); border-color: var(--border-2); }
+
+/* Two refs and a go button: the header's ref selector is the model, reused on
+   pages that have no single ref to switch to. */
+.compareform {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+}
+.compareform label {
+  font: 400 var(--text-sm)/1.4 var(--font-mono);
+  color: var(--fg-3);
+}
+
+/* Collapsible sections on the compare page: the commit list and the file index
+   are reference material, not the answer, so they start folded. */
+details.card > summary { cursor: pointer; }
+details.card > summary.panel-label { margin: 0; }
+details.card[open] > summary.panel-label { margin-bottom: var(--sp-3); }
+.filejump ul { margin: 0; padding-left: var(--sp-4); }
+.filejump li { font: 400 var(--text-sm)/1.6 var(--font-mono); }
 
 /* Results reuse the code-row shape — a line per match — but wrap instead of
    scrolling: a matched line can be a minified 2000 characters, and a result you

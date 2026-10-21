@@ -72,7 +72,7 @@ func New() (*Renderer, error) {
 		return nil, fmt.Errorf("parse layout: %w", err)
 	}
 	pages := map[string]*template.Template{}
-	for _, name := range []string{"tree", "blob", "blame", "commits", "commit", "refs", "search", "error", "empty"} {
+	for _, name := range []string{"tree", "blob", "blame", "commits", "commit", "compare", "refs", "search", "error", "empty"} {
 		t, err := root.Clone()
 		if err != nil {
 			return nil, err

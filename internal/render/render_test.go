@@ -46,7 +46,7 @@ func TestPagesRenderNonEmpty(t *testing.T) {
 		"commit": CommitPage{Base: b, Meta: &git.CommitMeta{CommitInfo: c, Body: "body", Parents: []string{"def4567901234567890123456789012345678901"}}, Merge: true,
 			Files: []FileCard{{FileView: FileView{FileDiff: git.FileDiff{Status: "R", Old: "a.txt", New: "b.txt", Adds: 1, Dels: 1, Patch: "@@ -1,1 +1,1 @@\n-a\n+b\n"}, Rows: git.UnifiedRows("@@ -1,1 +1,1 @@\n-a\n+b\n")}, Ref: c.Hash, Rendered: true}}, View: "unified"},
 		"compare": ComparePage{Base: b, BaseRef: "main", HeadRef: "feature",
-			BaseInfo: &c, HeadInfo: &c, MergeBase: &c, Ahead: 2, Behind: 1,
+			BaseInfo: &c, HeadInfo: &c, From: c.Hash, Ahead: 2, Behind: 1,
 			Commits: []git.CommitInfo{c}, View: "unified",
 			Files: []FileCard{{FileView: FileView{FileDiff: git.FileDiff{Status: "M", New: "a.txt", Adds: 1, Dels: 1, Patch: "@@ -1,1 +1,1 @@\n-a\n+b\n"}, Rows: git.UnifiedRows("@@ -1,1 +1,1 @@\n-a\n+b\n")},
 				Ref: c.Hash, Anchor: "file-1", Rendered: true}},

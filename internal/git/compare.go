@@ -43,8 +43,11 @@ type Range struct {
 	Base, Head CommitInfo
 	// From is the commit the diff was taken against: the merge base, or the
 	// base itself when the histories are unrelated.
-	From          string
-	MergeBase     *CommitInfo
+	From string
+	// NoMergeBase is set only when git says the histories share no ancestor.
+	// Without it, From is the merge base the diff was taken against — which is
+	// the fact the page needs, and the only one it renders.
+	NoMergeBase   bool
 	Ahead, Behind int
 	Commits       []CommitInfo
 	CommitsMore   bool
@@ -71,9 +74,6 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		rng.Head = h.CommitInfo
 	}
 	if baseHash == headHash {
-		if rng.Base.Hash != "" {
-			rng.MergeBase = &rng.Base
-		}
 		return rng, nil
 	}
 
@@ -85,14 +85,21 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	if out, err := r.git(ctx, "merge-base", baseHash, headHash); err == nil {
 		if mb := strings.TrimSpace(string(out)); isFullHex(mb) {
 			rng.From = mb
-			if m, err := r.CommitCtx(ctx, mb); err == nil {
-				rng.MergeBase = &m.CommitInfo
-			}
+		} else {
+			// merge-base answered with something that is not a commit hash.
+			// Calling that "no common ancestor" would silently serve the
+			// tree-to-tree diff this page exists to avoid.
+			return nil, fmt.Errorf("merge-base: unexpected output %q", strings.TrimSpace(string(out)))
 		}
 	} else if ctx.Err() != nil {
 		rng.Stopped = true
 		return rng, nil
-	} else if code, ok := exitCode(err); !ok || code != 1 {
+	} else if code, ok := exitCode(err); ok && code == 1 {
+		// Exit 1 is git's "no common ancestor": an answer, not a failure. The
+		// range degrades to tree-to-tree and the page says so, which is a
+		// different fact from a merge base whose metadata could not be read.
+		rng.NoMergeBase = true
+	} else {
 		return nil, r.statErr(err)
 	}
 

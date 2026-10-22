@@ -81,13 +81,14 @@ CGO_ENABLED=0 go build -trimpath -o gerve ./cmd/gerve
 ```
 gerve [flags] [path]
 
-  -p, --port <port>   listen port        (default 8080; 0 = OS-assigned)
-  -a, --addr <addr>   bind address       (default 127.0.0.1; 0.0.0.0 = all
-                                         interfaces — LAN URLs printed on start)
-  -b, --ref <ref>     ref to open at     (default HEAD)
-      --open          open the browser on start
-  -V, --version       print version
-  -h, --help          show this help
+  -p, --port <port>     listen port        (default 8080; 0 = OS-assigned)
+  -a, --addr <addr>     bind address       (default 127.0.0.1; 0.0.0.0 = all
+                                           interfaces — LAN URLs printed on start)
+  -b, --ref <ref>       ref to open at     (default HEAD)
+      --open            open the browser on start
+      --share-url <url> public URL for LAN/QR sharing
+  -V, --version         print version
+  -h, --help            show this help
 ```
 
 Flags work before or after the path: `gerve . -p 8080` is fine too.
@@ -97,6 +98,32 @@ gerve .
 gerve -p 9000 ~/src/some-repo
 gerve --version
 ```
+
+## Sharing on a LAN or tailnet
+
+Sharing is opt-in. With a wildcard bind, gerve prints its LAN URLs and shows a
+share button in the header:
+
+```sh
+gerve -a 0.0.0.0 -p 8080 .
+```
+
+For a stable name — for example a Tailscale MagicDNS name — pass the public
+origin explicitly:
+
+```sh
+gerve -a 0.0.0.0 -p 8080 \
+  --share-url http://strowger.mule-bramble.b7r.dev:8080 .
+```
+
+The share dialog lists the current page for every reachable origin, with a
+locally generated QR code and a copy button for each. The public URL can be
+changed per browser from the dialog; the change is stored in `localStorage`, not
+on the server.
+
+There is no authentication. Anyone who can reach the port can read the
+repository. See [`docs/sharing.md`](docs/sharing.md) for LAN, Tailscale, and
+reverse-proxy guidance.
 
 ## Development
 
@@ -175,11 +202,14 @@ default. Read-only: gerve never writes to the repository.
   bytes the file view shows — and files that exist only in your working tree are
   searched too, badged as such.
 - **Blame** via `git blame --porcelain`.
+- **Share view** when deliberately reachable beyond localhost: a QR code and
+  copy link for the current page on each LAN or configured public origin.
 
 Type set in [IBM Plex Sans](https://github.com/IBM/plex) and
 [IBM Plex Mono](https://github.com/IBM/plex), vendored under
 `web/static/fonts/` and embedded in the binary —
-[SIL Open Font License 1.1](web/static/fonts/OFL.txt).
+[SIL Open Font License 1.1](web/static/fonts/OFL.txt). The share dialog's QR
+encoder is vendored under `web/static/qrcode.js` (MIT).
 
 ## License
 

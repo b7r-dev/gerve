@@ -38,6 +38,8 @@ archives:
     files:
       - LICENSE
       - README.md
+      - src: web/static/qrcode.LICENSE.txt
+        dst: QRCODE-LICENSE.txt
 
 checksum:
   name_template: checksums.txt

@@ -281,3 +281,36 @@ func TestWrapTablesLeavesCodeAlone(t *testing.T) {
 		t.Errorf("escaped code containing <table> went missing:\n%s", out)
 	}
 }
+
+// TestComparePageSaysWhichLimitItHit: every way a comparison can stop short is
+// named in its own words, so the page never blames size for a read that failed.
+func TestComparePageSaysWhichLimitItHit(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := fixtureBase()
+	cases := []struct {
+		name string
+		page ComparePage
+		want string
+	}{
+		{"over the listing cap", ComparePage{Base: b, TooLarge: true}, "more changes than gerve will list"},
+		{"listing incomplete", ComparePage{Base: b, FilesIncomplete: true, FilesTotal: 3}, "could not be read in full"},
+		{"incomplete count", ComparePage{Base: b, FilesIncomplete: true, FilesTotal: 3}, "at least 3 files changed"},
+		{"unreadable count", ComparePage{Base: b, FilesIncomplete: true}, "file list unreadable"},
+		{"chunk unreadable", ComparePage{Base: b, Failed: true}, "could not be read from this repository"},
+		{"partial clone", ComparePage{Base: b, Unavailable: true}, "never fetches missing objects"},
+		{"deadline", ComparePage{Base: b, Stopped: true}, "did not finish"},
+		{"one unrendered file", ComparePage{Base: b, Truncated: true, NotRendered: 1}, "1 file could not be rendered"},
+	}
+	for _, tc := range cases {
+		var out bytes.Buffer
+		if err := rd.pages["compare"].ExecuteTemplate(&out, "layout", tc.page); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if !strings.Contains(out.String(), tc.want) {
+			t.Errorf("%s: page is missing %q:\n%.900s", tc.name, tc.want, out.String())
+		}
+	}
+}

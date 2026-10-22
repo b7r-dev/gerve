@@ -21,6 +21,12 @@ const (
 	CompareFileCap     = 1 << 20 // bytes of patch text for one file
 	compareChunkBytes  = 4 << 20 // stdout cap for one `git diff` chunk
 	compareChunk       = 50      // paths per `git diff` invocation
+	// compareStatBytes caps a stat listing's stdout. A listing is one short
+	// record per path, so a range big enough to blow this cannot be shown
+	// anyway — and without the cap the whole listing is buffered before
+	// CompareMaxFiles applies, which makes the page's memory bounded by the
+	// repository rather than by a constant.
+	compareStatBytes = 8 << 20
 )
 
 // RangeFile is one file's change between two commits.
@@ -55,6 +61,10 @@ type Range struct {
 	FilesMore     int
 	Adds, Dels    int
 	Stopped       bool // the deadline cut the answer short
+	TooLarge      bool // the stat listing exceeded compareStatBytes
+	// FilesIncomplete means the listing could not be read in full; the files
+	// that did parse are shown, and the page must not call itself complete.
+	FilesIncomplete bool
 }
 
 // ErrObjectsUnavailable means the comparison needs file contents that are not
@@ -66,6 +76,13 @@ var ErrObjectsUnavailable = errors.New("objects are not available locally")
 // to one path. It never renders a patch — that is RangePatch, once the caller
 // knows which files survived the caps.
 func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*Range, error) {
+	return r.compare(ctx, baseHash, headHash, scope, compareStatBytes)
+}
+
+// compare is Compare with an explicit listing cap. The cap is a parameter, not
+// package state, so a test can lower it without changing what every other test
+// (or a running server) sees.
+func (r *Repo) compare(ctx context.Context, baseHash, headHash, scope string, statBytes int) (*Range, error) {
 	rng := &Range{From: baseHash}
 	if b, err := r.CommitCtx(ctx, baseHash); err == nil {
 		rng.Base = b.CommitInfo
@@ -146,7 +163,13 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		}
 		return args
 	}
-	nsOut, err := r.gitEnv(ctx, noLazyFetch(), statArgs("--name-status")...)
+	nsOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--name-status")...)
+	if errors.Is(err, errOutputTooLarge) {
+		// No file list is better than a list that pretends to be the whole
+		// range: the page says the range is too large and offers a scope.
+		rng.TooLarge = true
+		return rng, nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			rng.Stopped = true
@@ -154,7 +177,11 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		}
 		return nil, r.statErr(err)
 	}
-	numOut, err := r.gitEnv(ctx, noLazyFetch(), statArgs("--numstat")...)
+	numOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--numstat")...)
+	if errors.Is(err, errOutputTooLarge) {
+		rng.TooLarge = true
+		return rng, nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			rng.Stopped = true
@@ -171,7 +198,11 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 			rng.Dels += n.dels
 		}
 	}
-	for _, s := range parseNameStatusZ(nsOut) {
+	statuses, complete := parseNameStatusZ(nsOut)
+	if !complete {
+		rng.FilesIncomplete = true
+	}
+	for _, s := range statuses {
 		key := rangeKey(s.old, s.new, s.status)
 		n := counts[key]
 		rng.Files = append(rng.Files, RangeFile{
@@ -235,6 +266,7 @@ type RangePatches struct {
 	Truncated   bool // a cap or the byte budget left files unrendered
 	Stopped     bool // the deadline cut the patch pass short
 	Unavailable bool // contents are not in the local object store (partial clone)
+	Failed      bool // git could not read a chunk for a reason that is not size
 }
 
 // Get returns the patch for a file, tolerating a rename that the chunked pass
@@ -313,7 +345,9 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 			if r.promisorPacks() {
 				res.Unavailable = true
 			} else {
-				res.Truncated = true
+				// Not a size cap and not a partial clone: git refused the
+				// read. The page may not blame the size of the change for it.
+				res.Failed = true
 			}
 			continue
 		}
@@ -341,9 +375,11 @@ func noLazyFetch() []string { return []string{"GIT_NO_LAZY_FETCH=1"} }
 
 type statusRec struct{ status, old, new string }
 
-func parseNameStatusZ(out []byte) []statusRec {
+// parseNameStatusZ reads `--name-status -z`. The boolean says the listing was
+// read to the end: a truncated or unrecognised record stops the parse, and the
+// caller must not pass the prefix off as the whole range.
+func parseNameStatusZ(out []byte) (recs []statusRec, complete bool) {
 	toks := bytes.Split(out, []byte{0})
-	var recs []statusRec
 	for i := 0; i < len(toks); i++ {
 		s := string(toks[i])
 		if s == "" {
@@ -352,13 +388,13 @@ func parseNameStatusZ(out []byte) []statusRec {
 		switch s[0] {
 		case 'R', 'C':
 			if i+2 >= len(toks) || len(toks[i+2]) == 0 {
-				return recs
+				return recs, false
 			}
 			recs = append(recs, statusRec{status: s[:1], old: string(toks[i+1]), new: string(toks[i+2])})
 			i += 2
 		case 'A', 'D', 'M', 'T', 'U', 'X', 'B':
 			if i+1 >= len(toks) || len(toks[i+1]) == 0 {
-				return recs
+				return recs, false
 			}
 			p := string(toks[i+1])
 			rec := statusRec{status: s[:1]}
@@ -369,9 +405,13 @@ func parseNameStatusZ(out []byte) []statusRec {
 			}
 			recs = append(recs, rec)
 			i++
+		default:
+			// Not a status git emits: the stream is out of step, and the next
+			// token would be read as a status if we kept going.
+			return recs, false
 		}
 	}
-	return recs
+	return recs, true
 }
 
 type numstatRec struct {

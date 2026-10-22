@@ -439,9 +439,14 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 		Stopped:      rng.Stopped || patches.Stopped,
 		Truncated:    patches.Truncated,
 		Unavailable:  patches.Unavailable,
-		SwapURL:      compareURL(headRef, baseRef, view, scope),
-		SideURL:      compareURL(baseRef, headRef, "side", scope),
-		UnifiedURL:   compareURL(baseRef, headRef, "", scope),
+		Failed:       patches.Failed,
+		TooLarge:     rng.TooLarge,
+		// A listing that could not be read in full is reported as such; the
+		// files that did parse are still shown.
+		FilesIncomplete: rng.FilesIncomplete,
+		SwapURL:         compareURL(headRef, baseRef, view, scope),
+		SideURL:         compareURL(baseRef, headRef, "side", scope),
+		UnifiedURL:      compareURL(baseRef, headRef, "", scope),
 	}
 	page.Files = make([]render.FileCard, 0, len(rng.Files))
 	for i, f := range rng.Files {

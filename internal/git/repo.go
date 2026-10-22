@@ -368,12 +368,6 @@ func (r *Repo) git(ctx context.Context, args ...string) ([]byte, error) {
 	return r.gitCall(ctx, nil, nil, args...)
 }
 
-// gitEnv is git with extra environment for one call — see noLazyFetch, which
-// keeps a partial clone from fetching during a diff.
-func (r *Repo) gitEnv(ctx context.Context, extraEnv []string, args ...string) ([]byte, error) {
-	return r.gitCall(ctx, nil, extraEnv, args...)
-}
-
 // gitStdin is git with a stdin payload. check-ignore takes its paths that way,
 // NUL-terminated, which is what keeps a name containing a newline from being
 // read as two paths.

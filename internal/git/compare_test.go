@@ -345,7 +345,10 @@ func TestCompareWithoutAMergeBase(t *testing.T) {
 // shapes that bite: a rename, a binary file, a path with a tab, a leading colon,
 // and a truncated record that must not panic.
 func TestCompareParsesStatRecords(t *testing.T) {
-	ns := parseNameStatusZ([]byte("M\x00plain.txt\x00R073\x00old.txt\x00new.txt\x00A\x00:colon.txt\x00D\x00gone.txt\x00"))
+	ns, complete := parseNameStatusZ([]byte("M\x00plain.txt\x00R073\x00old.txt\x00new.txt\x00A\x00:colon.txt\x00D\x00gone.txt\x00"))
+	if !complete {
+		t.Error("a well-formed listing was reported as incomplete")
+	}
 	wantNS := []statusRec{
 		{status: "M", new: "plain.txt"},
 		{status: "R", old: "old.txt", new: "new.txt"},
@@ -367,9 +370,15 @@ func TestCompareParsesStatRecords(t *testing.T) {
 		t.Errorf("numstat = %+v, want %+v", nums, wantNums)
 	}
 
-	// A rename record cut short yields nothing rather than a half file.
-	if got := parseNameStatusZ([]byte("R073\x00old.txt\x00")); len(got) != 0 {
-		t.Errorf("truncated rename parsed as %+v", got)
+	// A rename record cut short yields nothing rather than a half file, and it
+	// says so — the page must not present the prefix as the whole range.
+	if got, ok := parseNameStatusZ([]byte("R073\x00old.txt\x00")); len(got) != 0 || ok {
+		t.Errorf("truncated rename parsed as %+v (complete=%v)", got, ok)
+	}
+	// A token that is not a status means the stream is out of step; continuing
+	// would read the next pathname as a status.
+	if got, ok := parseNameStatusZ([]byte("Z\x00whatever.txt\x00")); len(got) != 0 || ok {
+		t.Errorf("unknown status parsed as %+v (complete=%v)", got, ok)
 	}
 }
 
@@ -439,5 +448,28 @@ func TestGitLimitStopsAtTheCap(t *testing.T) {
 	out, err := r.gitLimit(t.Context(), nil, 1<<20, "log", "--format=%H")
 	if err != nil || len(out) == 0 {
 		t.Fatalf("under the cap: %d bytes, %v", len(out), err)
+	}
+}
+
+// TestCompareReportsAListingOverTheCap: the stat cap is checked while git
+// writes, so a range too big to list is an answer with a name, not a memory
+// spike whose size depends on the repository. The cap is lowered here rather
+// than building a fixture with millions of paths.
+func TestCompareReportsAListingOverTheCap(t *testing.T) {
+	r, base, head := compareFixture(t)
+
+	rng, err := r.compare(t.Context(), base, head, "", 16) // smaller than any real record
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rng.TooLarge {
+		t.Error("a listing over the cap was not reported as too large")
+	}
+	if len(rng.Files) != 0 {
+		t.Errorf("files = %d, want none: a partial listing must not be shown", len(rng.Files))
+	}
+	// The rest of the answer is still there: the cap only stops the listing.
+	if rng.From == "" || len(rng.Commits) == 0 {
+		t.Errorf("the range lost its commits or diff base: %+v", rng)
 	}
 }

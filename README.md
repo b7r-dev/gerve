@@ -1,9 +1,9 @@
 # gerve
 
-**A local Git repository viewer.**
+[![CI](https://github.com/b7r-dev/gerve/actions/workflows/ci.yml/badge.svg)](https://github.com/b7r-dev/gerve/actions/workflows/ci.yml)
 
-A single-binary, read-only web UI for browsing local Git repositories:
-files, commits, diffs, blame, history, search, and working-tree changes.
+**gerve is a local Git repository viewer:** a single-binary, read-only web UI for
+the repository already on your machine.
 
 `gerve -p 8080 .` starts a localhost HTTP server that renders the repository
 you're standing in — file tree, blobs with syntax highlighting, commit log,
@@ -26,23 +26,26 @@ gerve is for one repository already on your machine:
     gerve .
 
 Nothing is imported, uploaded, indexed remotely, or written back to the repo.
+gerve does not host repositories, import them, mutate them, or require an
+account, a database, or a background service.
 
 ## Status
 
-**v1 working.** Requirements were explored through five personas and
-narratives in [`docs/personas/`](docs/personas/) — start with
+**v1.0.0 — stable.** The requirements that shaped it are recorded through five
+personas and narratives in [`docs/personas/`](docs/personas/) — start with
 [the overview](docs/personas/00-overview.md) for the settled decisions.
 
-## Installation
+## Install
 
-Needs Go 1.26 or newer, and git. Zero egress also needs git 2.46 or newer:
-gerve sets `GIT_NO_LAZY_FETCH` on every git call, and older git ignores it, so a
-partial clone would fetch missing objects from its promisor remote.
+Download the archive for your platform from
+[GitHub Releases](https://github.com/b7r-dev/gerve/releases), verify it against
+`checksums.txt`, and put `gerve` on your `PATH`. Archives contain the binary,
+`README.md`, and `LICENSE`.
 
-From a checkout of this repository:
+Or install with the Go toolchain, with no checkout:
 
 ```sh
-go install ./cmd/gerve
+go install github.com/b7r-dev/gerve/cmd/gerve@latest
 ```
 
 The binary lands in `$(go env GOPATH)/bin` — make sure that directory is on
@@ -52,40 +55,92 @@ your `PATH`:
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
-Or install from anywhere — no checkout needed — now that the module lives
-on GitHub:
+From a checkout, install into `GOPATH/bin`:
 
 ```sh
-go install github.com/b7r-dev/gerve/cmd/gerve@latest
+go install ./cmd/gerve
 ```
 
 Or build a standalone binary by hand — a single static executable with every
 template, stylesheet, and script embedded, no runtime dependencies:
 
 ```sh
-CGO_ENABLED=0 go build -o /usr/local/bin/gerve ./cmd/gerve
+CGO_ENABLED=0 go build -trimpath -o gerve ./cmd/gerve
 ```
 
-Then point it at any repository:
+## Requirements
 
-```sh
-gerve -p 8080 .
-```
+- Go 1.26 or newer to build.
+- `git` to read repositories.
+- git 2.46 or newer for zero egress. gerve sets `GIT_NO_LAZY_FETCH` on every
+  git call; older git ignores it, so a partial clone could fetch missing
+  objects from its promisor remote.
 
-## Planned usage
+## Usage
 
 ```
 gerve [flags] [path]
 
-  -p <port>     listen port        (default 8080; 0 = OS-assigned)
-  -a <addr>     bind address       (default 127.0.0.1; 0.0.0.0 = all
-                                   interfaces — LAN URLs printed on start)
-  -b <ref>      ref to open at     (default HEAD)
-  --open        open the browser on start
-  -V            print version
+  -p, --port <port>   listen port        (default 8080; 0 = OS-assigned)
+  -a, --addr <addr>   bind address       (default 127.0.0.1; 0.0.0.0 = all
+                                         interfaces — LAN URLs printed on start)
+  -b, --ref <ref>     ref to open at     (default HEAD)
+      --open          open the browser on start
+  -V, --version       print version
+  -h, --help          show this help
 ```
 
 Flags work before or after the path: `gerve . -p 8080` is fine too.
+
+```sh
+gerve .
+gerve -p 9000 ~/src/some-repo
+gerve --version
+```
+
+## Development
+
+Build, test, and validate with the standard Go toolchain:
+
+```sh
+go build ./cmd/gerve
+go test ./...
+go vet ./...
+gofmt -l .
+```
+
+`gofmt -l .` should print nothing. CI runs tests and vet on Linux, macOS, and
+Windows, and checks formatting on Linux.
+
+### Snapshot release
+
+Exercise the full GoReleaser configuration locally without publishing anything:
+
+```sh
+goreleaser release --snapshot --clean
+```
+
+Artifacts — archives for macOS and Linux on amd64 and arm64, Windows on amd64,
+plus `checksums.txt` — land in `dist/`. Snapshot builds use the same
+`.goreleaser.yaml` as a real release; only the version and publishing differ.
+
+### Publishing a release
+
+Release tags use semantic versioning and must match `v*`. Push the tag and let
+GitHub Actions do the rest:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow checks out the tag, sets up Go, runs GoReleaser, and
+publishes a GitHub Release named after the tag. Binaries are built with
+`CGO_ENABLED=0` and `-trimpath`, and the version is embedded at link time, so
+`gerve --version` reports the release tag. Release notes are generated from the
+commit history, grouped into features, bug fixes, and other changes; docs,
+chore, test, style, design, CI, and merge commits are omitted. Prerelease tags
+such as `v1.1.0-rc.1` are marked as prereleases automatically.
 
 ## Design in one paragraph
 

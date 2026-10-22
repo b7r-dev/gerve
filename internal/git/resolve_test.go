@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"path/filepath"
@@ -104,5 +105,39 @@ func TestResolveFallsBackToTheCLI(t *testing.T) {
 		if _, err := r.Resolve(rev); !errors.Is(err, ErrNotFound) {
 			t.Errorf("resolve %q: err = %v, want ErrNotFound", rev, err)
 		}
+	}
+}
+
+// TestCommitMetadataHonoursTheCallerContext: a comparison reads up to three
+// commits inside one page budget, so the CLI fallback must run on the caller's
+// context rather than a fresh Background one. A shared clone forces the
+// fallback, which is the path that used to ignore the deadline.
+func TestCommitMetadataHonoursTheCallerContext(t *testing.T) {
+	_, dst := sharedCloneFixture(t)
+	r, err := Open(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := r.HeadHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.CommitCtx(cancelled, head); err == nil {
+		t.Error("a cancelled context still read the commit")
+	}
+	if _, err := r.commitFromCLI(cancelled, head); err == nil {
+		t.Error("commitFromCLI ran with a cancelled context")
+	}
+
+	// The wrapper the rest of the server uses still works without a deadline.
+	m, err := r.Commit(head)
+	if err != nil {
+		t.Fatalf("Commit without a deadline: %v", err)
+	}
+	if m.Subject == "" {
+		t.Error("Commit returned no subject")
 	}
 }

@@ -258,13 +258,20 @@ type CommitMeta struct {
 // Commit resolves a revision and returns its metadata. Annotated tags peel
 // to commits; refs without commits fail with ErrNotFound.
 func (r *Repo) Commit(rev string) (*CommitMeta, error) {
-	h, err := r.Resolve(rev)
+	return r.CommitCtx(context.Background(), rev)
+}
+
+// CommitCtx is Commit under the caller's deadline. Resolving and reading a
+// commit may each spawn git — a comparison reads up to three of them inside one
+// page budget — so the work has to be cancellable rather than run on Background.
+func (r *Repo) CommitCtx(ctx context.Context, rev string) (*CommitMeta, error) {
+	h, err := r.ResolveCtx(ctx, rev)
 	if err != nil {
 		return nil, err
 	}
 	c, err := r.r.CommitObject(plumbing.NewHash(h))
 	if err != nil {
-		return r.commitFromCLI(h)
+		return r.commitFromCLI(ctx, h)
 	}
 	m := &CommitMeta{Parents: make([]string, 0, len(c.ParentHashes))}
 	for _, p := range c.ParentHashes {
@@ -290,13 +297,13 @@ func (r *Repo) Commit(rev string) (*CommitMeta, error) {
 // object — the same reason Resolve has a fallback. The fields and the time
 // choice (committer, falling back to author) match the go-git path, so a page
 // does not change shape depending on which side answered.
-func (r *Repo) commitFromCLI(hash string) (*CommitMeta, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (r *Repo) commitFromCLI(ctx context.Context, hash string) (*CommitMeta, error) {
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// NUL, not a printable separator: the body is multi-line and may contain
 	// anything printable. -z makes git terminate the record with NUL too.
 	const format = "%H%x00%an%x00%ct%x00%P%x00%B"
-	out, err := r.git(ctx, "show", "-s", "--no-color", "-z", "--format="+format, hash)
+	out, err := r.git(cctx, "show", "-s", "--no-color", "-z", "--format="+format, hash)
 	if err != nil {
 		return nil, ErrNotFound
 	}

@@ -141,6 +141,11 @@ type ComparePage struct {
 	Stopped      bool   // the time budget cut the comparison short
 	Truncated    bool   // a size cap left files unrendered
 	Unavailable  bool   // contents are not local (partial clone)
+	Failed       bool   // a patch chunk could not be read, for a reason that is not size
+	TooLarge     bool   // the range has more files than gerve will list
+	// FilesIncomplete means the file listing could not be read in full; the
+	// page must not present what it has as the whole range.
+	FilesIncomplete bool
 
 	SwapURL    string
 	SideURL    string

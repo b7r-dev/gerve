@@ -38,9 +38,10 @@
     · {{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}}{{if .CommitsMore}} (first {{len .Commits}}){{end}}
   </div>
   <div class="meta-line">
-    <span class="strong">{{.FilesTotal}} file{{if ne .FilesTotal 1}}s{{end}} changed</span>
+    {{if .TooLarge}}<span class="strong">too many files to list</span>
+    {{else}}<span class="strong">{{.FilesTotal}} file{{if ne .FilesTotal 1}}s{{end}} changed</span>
     <span class="add">+{{.Adds}}</span>
-    <span class="del">&minus;{{.Dels}}</span>
+    <span class="del">&minus;{{.Dels}}</span>{{end}}
     <span class="viewsel">
       {{if eq .View "side"}}<a href="{{.UnifiedURL}}">unified</a> <span class="muted">| side-by-side</span>
       {{else}}<span class="muted">unified |</span> <a href="{{.SideURL}}">side-by-side</a>{{end}}
@@ -51,7 +52,10 @@
   {{if .ScopeDropped}}<div class="meta-line muted">no <code>{{.ScopeDropped}}</code> in this range &mdash; showing the whole comparison</div>{{end}}
   {{if .Stopped}}<div class="banner banner-deleted">the time budget cut this comparison short &mdash; narrow it with a path scope</div>{{end}}
   {{if .Unavailable}}<div class="banner banner-deleted">some file contents are not in this repository's object store &mdash; it looks like a partial clone &mdash; and gerve never fetches missing objects</div>{{end}}
-  {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} files are listed but were not rendered{{else}}some patches were not rendered{{end}} &mdash; too large for this page, or beyond its budget; each card links to its file at the head revision where it still exists</div>{{end}}
+  {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} file{{if ne .NotRendered 1}}s{{end}} could not be rendered{{else}}some patches could not be rendered{{end}} &mdash; too large for this page, or beyond its budget; each card links to its file at the head revision where it still exists</div>{{end}}
+  {{if .Failed}}<div class="banner banner-deleted">some patches could not be read from this repository &mdash; the rest of the page is complete</div>{{end}}
+  {{if .TooLarge}}<div class="banner">this range has more changes than gerve will list &mdash; narrow it with a path scope</div>{{end}}
+  {{if .FilesIncomplete}}<div class="banner banner-deleted">the file list could not be read in full &mdash; changes may be missing from this page</div>{{end}}
   {{if .FilesMore}}<div class="banner">showing the first {{len .Files}} of {{.FilesTotal}} files &mdash; narrow it with a path scope</div>{{end}}
 </div>
 
@@ -83,7 +87,10 @@
 {{end}}
 
 {{range .Files}}{{template "file-diff" .}}{{else}}
-<p class="card muted">{{if .Stopped}}this comparison did not finish{{else}}no changes between these refs{{end}}</p>
+<p class="card muted">{{if .Stopped}}this comparison did not finish
+{{else if .TooLarge}}this range has more changes than gerve will list
+{{else if .FilesIncomplete}}the file list could not be read
+{{else}}no changes between these refs{{end}}</p>
 {{end}}
 {{end}}
 {{end}}

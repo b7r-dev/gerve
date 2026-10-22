@@ -370,9 +370,11 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 	// so a shared clone answers — and a path the head deleted but the base still
 	// has is a legitimate thing to scope a review to.
 	scope, ok := validQueryParamPath(q.Get("path"))
-	scopeDropped := ""
+	scopeDropped, scopeInvalid := "", false
 	if !ok {
-		scope = ""
+		// A value that is not a repository path at all is refused and said so,
+		// rather than vanishing from the page.
+		scope, scopeInvalid = "", true
 	} else if scope != "" && !s.repo.ExistsAt(ctx, headHash, scope) && !s.repo.ExistsAt(ctx, baseHash, scope) {
 		scopeDropped, scope = scope, ""
 	}
@@ -399,8 +401,8 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 		HeadRef:      headRef,
 		BaseInfo:     infoPtr(rng.Base),
 		HeadInfo:     infoPtr(rng.Head),
-		MergeBase:    commitPtr(rng.MergeBase),
-		NoMergeBase:  rng.MergeBase == nil,
+		From:         rng.From,
+		NoMergeBase:  rng.NoMergeBase,
 		Ahead:        rng.Ahead,
 		Behind:       rng.Behind,
 		Commits:      rng.Commits,
@@ -411,6 +413,7 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 		Dels:         rng.Dels,
 		Scoped:       scope,
 		ScopeDropped: scopeDropped,
+		ScopeInvalid: scopeInvalid,
 		WholeURL:     compareURL(baseRef, headRef, view, ""),
 		View:         view,
 		Stopped:      rng.Stopped || patches.Stopped,
@@ -527,14 +530,6 @@ func infoPtr(c git.CommitInfo) *git.CommitInfo {
 		return nil
 	}
 	return &c
-}
-
-// commitPtr is infoPtr for a pointer that may already be nil.
-func commitPtr(c *git.CommitInfo) *git.CommitInfo {
-	if c == nil || c.Hash == "" {
-		return nil
-	}
-	return c
 }
 
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {

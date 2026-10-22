@@ -32,8 +32,8 @@
     {{with .HeadInfo}}<a href="/commit/{{.Hash}}">{{short .Hash}}</a> <span class="muted">{{.Subject}}</span>{{end}}
   </div>
   <div class="meta-line muted">
-    {{if .MergeBase}}merge base <a href="/commit/{{.MergeBase.Hash}}">{{short .MergeBase.Hash}}</a>
-    {{else}}<span class="chip chip-warn">no common ancestor &mdash; compared tree to tree</span>{{end}}
+    {{if .NoMergeBase}}<span class="chip chip-warn">no common ancestor &mdash; compared tree to tree</span>
+    {{else}}merge base <a href="/commit/{{.From}}">{{short .From}}</a>{{end}}
     {{if .Ahead}}· {{.Ahead}} ahead{{end}}{{if .Behind}} · {{.Behind}} behind{{end}}
     · {{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}}{{if .CommitsMore}} (first {{len .Commits}}){{end}}
   </div>
@@ -49,6 +49,7 @@
   </div>
   {{if .Scoped}}<div class="meta-line muted">scoped to <code>{{.Scoped}}</code> &mdash; <a href="{{.WholeURL}}">whole range</a></div>{{end}}
   {{if .ScopeDropped}}<div class="meta-line muted">no <code>{{.ScopeDropped}}</code> in this range &mdash; showing the whole comparison</div>{{end}}
+  {{if .ScopeInvalid}}<div class="meta-line muted">the path scope in this URL is not a valid repository path &mdash; showing the whole comparison</div>{{end}}
   {{if .Stopped}}<div class="banner banner-deleted">the time budget cut this comparison short &mdash; narrow it with a path scope</div>{{end}}
   {{if .Unavailable}}<div class="banner banner-deleted">some file contents are not in this repository's object store &mdash; it looks like a partial clone &mdash; and gerve never fetches missing objects</div>{{end}}
   {{if .Truncated}}<div class="banner">{{if .NotRendered}}{{.NotRendered}} files are listed but were not rendered{{else}}some patches were not rendered{{end}} &mdash; too large for this page, or beyond its budget; each card links to its file at the head revision where it still exists</div>{{end}}

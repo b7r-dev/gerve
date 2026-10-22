@@ -2,6 +2,8 @@ package server
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -154,5 +156,54 @@ func TestCompareEntryPoints(t *testing.T) {
 		if !strings.Contains(body, `class="compareform"`) {
 			t.Errorf("%s has no compare form", path)
 		}
+	}
+}
+
+// TestCompareNamesTheMergeBaseItUsed: the header links the commit the diff
+// started from, so a reader can check it — and the link is never built from a
+// state that has no hash.
+func TestCompareNamesTheMergeBaseItUsed(t *testing.T) {
+	dir := compareServerFixture(t)
+	ts, _ := newTestServer(t, dir)
+	mb := gitHelperOut(t, dir, "merge-base", "main", "feature")
+	_, _, body := doReq(t, ts.URL+"/compare/main...feature", nil)
+	if !strings.Contains(body, "/commit/"+mb) {
+		t.Errorf("the page does not link the merge base %s:\n%.900s", mb, body)
+	}
+}
+
+// TestCompareWithoutACommonAncestorSaysSo: unrelated histories are an answer,
+// and the page says which diff it served rather than naming a merge base it
+// does not have.
+func TestCompareWithoutACommonAncestorSaysSo(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "first history", map[string]string{"a.txt": "a\n"})
+	gitHelper(t, dir, "checkout", "-q", "--orphan", "other")
+	gitHelper(t, dir, "rm", "-q", "-rf", "--cached", ".")
+	if err := os.Remove(filepath.Join(dir, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	commitFiles(t, dir, "second history", map[string]string{"b.txt": "b\n"})
+	ts, _ := newTestServer(t, dir)
+
+	_, _, body := doReq(t, ts.URL+"/compare/main...other", nil)
+	if !strings.Contains(body, "no common ancestor") {
+		t.Errorf("unrelated histories were not reported:\n%.900s", body)
+	}
+	if strings.Contains(body, "merge base") {
+		t.Error("the page names a merge base it does not have")
+	}
+}
+
+// TestCompareReportsAnInvalidScope: a path that is not a repository path at all
+// used to vanish silently, which reads as "the scope was applied".
+func TestCompareReportsAnInvalidScope(t *testing.T) {
+	ts, _ := newTestServer(t, compareServerFixture(t))
+	_, _, body := doReq(t, ts.URL+"/compare/main...feature?path=../etc", nil)
+	if !strings.Contains(body, "not a valid repository path") {
+		t.Error("an invalid scope was dropped silently")
+	}
+	if strings.Contains(body, "scoped to") {
+		t.Error("the page claims a scope it did not use")
 	}
 }

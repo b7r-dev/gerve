@@ -121,8 +121,8 @@ type ComparePage struct {
 	Base
 	BaseRef, HeadRef   string
 	BaseInfo, HeadInfo *git.CommitInfo
-	MergeBase          *git.CommitInfo
-	NoMergeBase        bool
+	From               string // the commit the diff was taken against
+	NoMergeBase        bool   // no common ancestor: From is the base tip, tree-to-tree
 
 	Ahead, Behind int
 	Commits       []git.CommitInfo
@@ -136,6 +136,7 @@ type ComparePage struct {
 
 	Scoped       string // path scope, "" for the whole range
 	ScopeDropped string // a requested scope that names nothing in this range
+	ScopeInvalid bool   // the URL's scope was not a valid repository path
 	WholeURL     string // this range with the scope removed
 	View         string // "unified" | "side"
 	Stopped      bool   // the time budget cut the comparison short

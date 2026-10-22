@@ -1,6 +1,7 @@
 /gerve
 /gerve.exe
 /dist/
+/planning/
 .screenshots/
 *.test
 .DS_Store

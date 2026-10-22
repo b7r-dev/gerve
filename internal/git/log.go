@@ -32,7 +32,7 @@ func (r *Repo) Log(ctx context.Context, refHash string, page, per int, path stri
 		if isEmptyHistoryErr(err) {
 			return &LogPage{}, nil
 		}
-		return nil, err
+		return nil, r.statErr(err)
 	}
 	commits := parseLogRecords(out)
 	p := &LogPage{Commits: commits}

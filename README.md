@@ -19,7 +19,9 @@ narratives in [`docs/personas/`](docs/personas/) — start with
 
 ## Installation
 
-Needs Go 1.26 or newer.
+Needs Go 1.26 or newer, and git. Zero egress also needs git 2.46 or newer:
+gerve sets `GIT_NO_LAZY_FETCH` on every git call, and older git ignores it, so a
+partial clone would fetch missing objects from its promisor remote.
 
 From a checkout of this repository:
 

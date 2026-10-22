@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Bounds for one comparison. They are exported the way SearchLimit is so the
@@ -182,8 +183,11 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	return rng, nil
 }
 
-// statErr keeps the honest answer when a stat pass fails: in a partial clone the
-// contents git wants are simply not here, and gerve will not fetch them.
+// statErr keeps the honest answer when a git read fails because the contents are
+// not local: in a partial clone they are simply not here, and gerve will not
+// fetch them. It is named for the compare stat pass that first needed it; blame,
+// the commit diff and search answer with it too, so a page can say why instead
+// of blaming the request.
 func (r *Repo) statErr(err error) error {
 	if r.promisorPacks() {
 		return fmt.Errorf("%w: %v", ErrObjectsUnavailable, err)
@@ -196,11 +200,25 @@ func (r *Repo) statErr(err error) error {
 // config does not — and a clone whose remote is gone is exactly the case gerve
 // must not paper over.
 func (r *Repo) promisorPacks() bool {
-	base := filepath.Join(r.root, ".git")
-	if !r.worktree {
-		base = r.root
+	// Ask git for the object directory rather than guessing <root>/.git: in a
+	// linked worktree .git is a file, and the objects live in the common dir it
+	// points at. A failure here falls back to the plain layout.
+	dir := ""
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if out, err := r.git(ctx, "rev-parse", "--git-path", "objects/pack"); err == nil {
+		dir = strings.TrimSpace(string(out))
+		if dir != "" && !filepath.IsAbs(dir) {
+			dir = filepath.Join(r.root, dir)
+		}
 	}
-	m, _ := filepath.Glob(filepath.Join(base, "objects", "pack", "*.promisor"))
+	if dir == "" {
+		dir = filepath.Join(r.root, ".git", "objects", "pack")
+		if !r.worktree {
+			dir = filepath.Join(r.root, "objects", "pack")
+		}
+	}
+	m, _ := filepath.Glob(filepath.Join(dir, "*.promisor"))
 	return len(m) > 0
 }
 
@@ -304,9 +322,12 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 	return res
 }
 
-// noLazyFetch stops git from fetching missing objects in a partial clone. gerve
-// is a read-only, zero-egress viewer; a diff that quietly reaches for the
-// promisor remote would break that promise to make a page look complete.
+// noLazyFetch names the zero-egress guard on a command that would otherwise
+// read file contents: runGitTo sets it for every invocation, and saying it here
+// keeps the "this command must not fetch" intent beside the command that would.
+// The value is deliberately redundant: the enforcement point is runGitTo, and
+// the named argument is what stops a later narrowing of that default from
+// silently re-enabling a fetch at a call site that must not.
 func noLazyFetch() []string { return []string{"GIT_NO_LAZY_FETCH=1"} }
 
 // --- parsing ----------------------------------------------------------------

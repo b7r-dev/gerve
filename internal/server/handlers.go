@@ -187,6 +187,10 @@ func (s *Server) blame(w http.ResponseWriter, r *http.Request) {
 	}
 	groups, err := s.repo.Blame(r.Context(), hash, p)
 	if err != nil {
+		if errors.Is(err, git.ErrObjectsUnavailable) {
+			s.contentsUnavailable(w, r)
+			return
+		}
 		s.errorPage(w, r, http.StatusNotFound, "no blame",
 			"Blame is not available for this path here — it may be untracked, binary, or too large.")
 		return
@@ -243,6 +247,10 @@ func (s *Server) commits(w http.ResponseWriter, r *http.Request) {
 	const per = 50
 	lp, err := s.repo.Log(r.Context(), hash, page, per, path, follow)
 	if err != nil {
+		if errors.Is(err, git.ErrObjectsUnavailable) {
+			s.contentsUnavailable(w, r)
+			return
+		}
 		s.errorPage(w, r, http.StatusInternalServerError, "error", "Something went wrong walking history.")
 		return
 	}
@@ -284,6 +292,10 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 	}
 	diff, err := s.repo.CommitDiff(ctx, meta.Hash, parent)
 	if err != nil {
+		if errors.Is(err, git.ErrObjectsUnavailable) {
+			s.contentsUnavailable(w, r)
+			return
+		}
 		s.errorPage(w, r, http.StatusInternalServerError, "error", "Something went wrong computing the diff.")
 		return
 	}
@@ -319,6 +331,15 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 	page.UnifiedURL = "/commit/" + rev
 
 	s.page(w, r, http.StatusOK, "commit", page)
+}
+
+// objectsUnavailableMsg is the honest answer when a git read wanted contents
+// this repository keeps on a promisor remote: gerve is zero-egress and will not
+// fetch them, so the page says that rather than blaming the request.
+const objectsUnavailableMsg = "This page needs file contents that are not in this repository's object store — it looks like a partial clone — and gerve never fetches missing objects."
+
+func (s *Server) contentsUnavailable(w http.ResponseWriter, r *http.Request) {
+	s.errorPage(w, r, http.StatusInternalServerError, "contents not available", objectsUnavailableMsg)
 }
 
 // compareTimeout bounds one comparison. The stat pass is cheap; the patch pass
@@ -384,8 +405,7 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 	rng, err := s.repo.Compare(ctx, baseHash, headHash, scope)
 	if err != nil {
 		if errors.Is(err, git.ErrObjectsUnavailable) {
-			s.errorPage(w, r, http.StatusInternalServerError, "contents not available",
-				"This comparison needs file contents that are not in this repository's object store — it looks like a partial clone — and gerve never fetches missing objects.")
+			s.contentsUnavailable(w, r)
 			return
 		}
 		s.errorPage(w, r, http.StatusInternalServerError, "error", "Something went wrong comparing those refs.")
@@ -583,6 +603,10 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	res, err := s.repo.Search(ctx, hash, s.repo.OverlayActive(hash), query, scope, git.SearchLimit)
 	if err != nil {
+		if errors.Is(err, git.ErrObjectsUnavailable) {
+			s.contentsUnavailable(w, r)
+			return
+		}
 		s.errorPage(w, r, http.StatusInternalServerError, "error", "Could not search this repository.")
 		return
 	}

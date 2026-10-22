@@ -37,7 +37,7 @@ func (r *Repo) CommitDiff(ctx context.Context, hash, parent string) (*CommitDiff
 	}
 	out, err := r.git(ctx, args...)
 	if err != nil {
-		return nil, err
+		return nil, r.statErr(err)
 	}
 	return ParsePatch(out), nil
 }
@@ -312,7 +312,7 @@ type BlameGroup struct {
 func (r *Repo) Blame(ctx context.Context, refHash, path string) ([]BlameGroup, error) {
 	out, err := r.git(ctx, "blame", "--porcelain", "-w", refHash, "--", path)
 	if err != nil {
-		return nil, err
+		return nil, r.statErr(err)
 	}
 	return parseBlame(out), nil
 }

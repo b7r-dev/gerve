@@ -122,7 +122,7 @@ func (r *Repo) Search(ctx context.Context, refHash string, overlay bool, query, 
 	res.Skipped += skippedRecords
 	if err != nil {
 		if ctx.Err() == nil {
-			return nil, err
+			return nil, r.statErr(err)
 		}
 		stopped = true // the deadline, not a failure: report what was found
 	}
@@ -147,7 +147,7 @@ func (r *Repo) Search(ctx context.Context, refHash string, overlay bool, query, 
 			res.Skipped += n
 			if err != nil {
 				if ctx.Err() == nil {
-					return nil, err
+					return nil, r.statErr(err)
 				}
 				stopped = true
 				break
@@ -268,9 +268,10 @@ func (r *Repo) grepAttempt(ctx context.Context, args []string, prefix string, fn
 	full := append([]string{"-c", "core.quotePath=false", "-c", "color.ui=never"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = r.root
-	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
+	// grep streams its own stdout, so it cannot go through runGitTo — which
+	// means the zero-egress guard is not inherited. It applies it here for the
+	// same reason: a search in a partial clone must fail, not fetch.
+	cmd.Env = withNoLazyFetch(append(os.Environ(), extraEnv...))
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, err
@@ -344,7 +345,13 @@ func (r *Repo) grepAttempt(ctx context.Context, args []string, prefix string, fn
 	if waitErr != nil {
 		var ee *exec.ExitError
 		if errors.As(waitErr, &ee) && ee.ExitCode() == 1 {
-			return g.skipped, nil // git grep exits 1 when nothing matched
+			// git grep exits 1 when nothing matched — and also when it could
+			// not read an object, which it explains on stderr. Reporting that
+			// as "no matches" is the one answer a search must never invent.
+			if msg := strings.TrimSpace(errb.String()); msg != "" {
+				return g.skipped, fmt.Errorf("git grep: %s", msg)
+			}
+			return g.skipped, nil // nothing matched
 		}
 		msg := strings.TrimSpace(errb.String())
 		if msg == "" {

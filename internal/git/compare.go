@@ -183,8 +183,11 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	return rng, nil
 }
 
-// statErr keeps the honest answer when a stat pass fails: in a partial clone the
-// contents git wants are simply not here, and gerve will not fetch them.
+// statErr keeps the honest answer when a git read fails because the contents are
+// not local: in a partial clone they are simply not here, and gerve will not
+// fetch them. It is named for the compare stat pass that first needed it; blame,
+// the commit diff and search answer with it too, so a page can say why instead
+// of blaming the request.
 func (r *Repo) statErr(err error) error {
 	if r.promisorPacks() {
 		return fmt.Errorf("%w: %v", ErrObjectsUnavailable, err)
@@ -322,6 +325,9 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 // noLazyFetch names the zero-egress guard on a command that would otherwise
 // read file contents: runGitTo sets it for every invocation, and saying it here
 // keeps the "this command must not fetch" intent beside the command that would.
+// The value is deliberately redundant: the enforcement point is runGitTo, and
+// the named argument is what stops a later narrowing of that default from
+// silently re-enabling a fetch at a call site that must not.
 func noLazyFetch() []string { return []string{"GIT_NO_LAZY_FETCH=1"} }
 
 // --- parsing ----------------------------------------------------------------

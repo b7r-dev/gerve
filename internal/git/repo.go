@@ -365,14 +365,14 @@ func (r *Repo) LastCommitFor(ctx context.Context, hash, path string) *CommitInfo
 const recFmt = "%x1e%H%x1f%h%x1f%an%x1f%at%x1f%s"
 
 func (r *Repo) git(ctx context.Context, args ...string) ([]byte, error) {
-	return r.gitCall(ctx, nil, nil, args...)
+	return r.gitCall(ctx, nil, args...)
 }
 
 // gitStdin is git with a stdin payload. check-ignore takes its paths that way,
 // NUL-terminated, which is what keeps a name containing a newline from being
 // read as two paths.
 func (r *Repo) gitStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	return r.gitCall(ctx, stdin, nil, args...)
+	return r.gitCall(ctx, stdin, args...)
 }
 
 // isDubiousOwnership reports the one git failure that a second invocation with
@@ -381,13 +381,12 @@ func isDubiousOwnership(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership")
 }
 
-func (r *Repo) gitCall(ctx context.Context, stdin []byte, extraEnv []string, args ...string) ([]byte, error) {
-	out, err := r.runGit(ctx, args, extraEnv, stdin)
+func (r *Repo) gitCall(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
+	out, err := r.runGit(ctx, args, stdin, nil)
 	if isDubiousOwnership(err) {
 		// Repo owned by another uid: retry with an override config. A
 		// safe.directory set via -c is not trusted by git; GIT_CONFIG_GLOBAL is.
-		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
-		if out2, err2 := r.runGit(ctx, args, env, stdin); err2 == nil {
+		if out2, err2 := r.runGit(ctx, args, stdin, safeDirEnv()); err2 == nil {
 			return out2, nil
 		}
 	}
@@ -412,7 +411,7 @@ func (e *gitError) Error() string {
 
 func (e *gitError) Unwrap() error { return e.err }
 
-func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string, stdin []byte) ([]byte, error) {
+func (r *Repo) runGit(ctx context.Context, args []string, stdin []byte, extraEnv []string) ([]byte, error) {
 	var out bytes.Buffer
 	if err := r.runGitTo(ctx, args, extraEnv, stdin, &out); err != nil {
 		return nil, err
@@ -424,16 +423,15 @@ func (r *Repo) runGit(ctx context.Context, args []string, extraEnv []string, std
 // with errOutputTooLarge instead of being buffered and measured afterwards —
 // which is the only way a diff page can promise bounded memory rather than
 // bounded output.
-func (r *Repo) gitLimit(ctx context.Context, extraEnv []string, limit int, args ...string) ([]byte, error) {
+func (r *Repo) gitLimit(ctx context.Context, limit int, args ...string) ([]byte, error) {
 	w := &capWriter{limit: limit}
-	err := r.runGitTo(ctx, args, extraEnv, nil, w)
+	err := r.runGitTo(ctx, args, nil, nil, w)
 	if w.overflow {
 		return nil, errOutputTooLarge
 	}
 	if isDubiousOwnership(err) {
 		w = &capWriter{limit: limit}
-		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
-		err = r.runGitTo(ctx, args, env, nil, w)
+		err = r.runGitTo(ctx, args, safeDirEnv(), nil, w)
 		if w.overflow {
 			return nil, errOutputTooLarge
 		}

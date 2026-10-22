@@ -385,6 +385,9 @@ func TestCompareParsesStatRecords(t *testing.T) {
 // TestCompareTreatsColonPathsAsData: without --literal-pathspecs git reads a
 // leading ":" as pathspec magic, and the file silently vanishes from a diff.
 func TestCompareTreatsColonPathsAsData(t *testing.T) {
+	if !supportsUnusualFilenames() {
+		t.Skip("Windows does not allow ':' in filenames")
+	}
 	dir := t.TempDir()
 	run := func(args ...string) { gitOut(t, dir, args...) }
 	run("init", "-q", "-b", "main")

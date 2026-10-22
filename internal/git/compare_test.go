@@ -86,11 +86,12 @@ func TestCompareUsesTheMergeBase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if rng.MergeBase == nil {
-		t.Fatal("no merge base recorded")
+	split := gitOut(t, r.Root(), "merge-base", "main", "feature")
+	if rng.From != split {
+		t.Errorf("diff taken from %s, want the split commit %s", rng.From, split)
 	}
-	if rng.MergeBase.Subject != "base" {
-		t.Errorf("merge base = %q, want the split commit", rng.MergeBase.Subject)
+	if rng.NoMergeBase {
+		t.Error("a shared ancestor was reported as unrelated histories")
 	}
 	if rng.Ahead != 1 || rng.Behind != 1 {
 		t.Errorf("ahead/behind = %d/%d, want 1/1", rng.Ahead, rng.Behind)
@@ -309,8 +310,8 @@ func TestCompareWithoutAMergeBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unrelated histories must degrade, not fail: %v", err)
 	}
-	if rng.MergeBase != nil {
-		t.Errorf("merge base = %v, want none", rng.MergeBase)
+	if !rng.NoMergeBase {
+		t.Error("unrelated histories were not reported as such")
 	}
 	if rng.From != base {
 		t.Errorf("From = %s, want the base tree when there is no ancestor", rng.From)
@@ -323,8 +324,8 @@ func TestCompareWithoutAMergeBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(self.Files) != 0 || len(self.Commits) != 0 || self.MergeBase == nil {
-		t.Errorf("self-compare = %+v, want no files and a merge base", self)
+	if len(self.Files) != 0 || len(self.Commits) != 0 || self.NoMergeBase || self.From != head {
+		t.Errorf("self-compare = %+v, want no files and the head as the diff base", self)
 	}
 
 	// A cancelled context returns rather than running the whole range — and it

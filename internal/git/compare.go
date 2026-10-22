@@ -43,12 +43,9 @@ type Range struct {
 	// From is the commit the diff was taken against: the merge base, or the
 	// base itself when the histories are unrelated.
 	From string
-	// MergeBase is the merge base when its metadata could be read; From is the
-	// authoritative answer either way.
-	MergeBase *CommitInfo
 	// NoMergeBase is set only when git says the histories share no ancestor.
-	// It is deliberately not derived from MergeBase == nil, which is also what
-	// an unreadable merge-base commit looks like.
+	// Without it, From is the merge base the diff was taken against — which is
+	// the fact the page needs, and the only one it renders.
 	NoMergeBase   bool
 	Ahead, Behind int
 	Commits       []CommitInfo
@@ -76,9 +73,6 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		rng.Head = h.CommitInfo
 	}
 	if baseHash == headHash {
-		if rng.Base.Hash != "" {
-			rng.MergeBase = &rng.Base
-		}
 		return rng, nil
 	}
 
@@ -90,9 +84,6 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	if out, err := r.git(ctx, "merge-base", baseHash, headHash); err == nil {
 		if mb := strings.TrimSpace(string(out)); isFullHex(mb) {
 			rng.From = mb
-			if m, err := r.CommitCtx(ctx, mb); err == nil {
-				rng.MergeBase = &m.CommitInfo
-			}
 		} else {
 			// merge-base answered with something that is not a commit hash.
 			// Calling that "no common ancestor" would silently serve the

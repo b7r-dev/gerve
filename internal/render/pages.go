@@ -136,7 +136,9 @@ type ComparePage struct {
 
 	Scoped       string // path scope, "" for the whole range
 	ScopeDropped string // a requested scope that names nothing in this range
-	ScopeInvalid bool   // the URL's scope was not a valid repository path
+	// ScopeInvalid reports a scope that is not a repository path at all. Its
+	// value is deliberately not echoed: it may carry control characters.
+	ScopeInvalid bool
 	WholeURL     string // this range with the scope removed
 	View         string // "unified" | "side"
 	Stopped      bool   // the time budget cut the comparison short

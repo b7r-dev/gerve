@@ -33,7 +33,8 @@
   </div>
   <div class="meta-line muted">
     {{if .NoMergeBase}}<span class="chip chip-warn">no common ancestor &mdash; compared tree to tree</span>
-    {{else}}merge base <a href="/commit/{{.From}}">{{short .From}}</a>{{end}}
+    {{else if .From}}merge base <a href="/commit/{{.From}}">{{short .From}}</a>
+    {{else}}<span class="muted">merge base unavailable</span>{{end}}
     {{if .Ahead}}· {{.Ahead}} ahead{{end}}{{if .Behind}} · {{.Behind}} behind{{end}}
     · {{len .Commits}} commit{{if ne (len .Commits) 1}}s{{end}}{{if .CommitsMore}} (first {{len .Commits}}){{end}}
   </div>

@@ -63,10 +63,10 @@ var ErrObjectsUnavailable = errors.New("objects are not available locally")
 // knows which files survived the caps.
 func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*Range, error) {
 	rng := &Range{From: baseHash}
-	if b, err := r.Commit(baseHash); err == nil {
+	if b, err := r.CommitCtx(ctx, baseHash); err == nil {
 		rng.Base = b.CommitInfo
 	}
-	if h, err := r.Commit(headHash); err == nil {
+	if h, err := r.CommitCtx(ctx, headHash); err == nil {
 		rng.Head = h.CommitInfo
 	}
 	if baseHash == headHash {
@@ -84,7 +84,7 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 	if out, err := r.git(ctx, "merge-base", baseHash, headHash); err == nil {
 		if mb := strings.TrimSpace(string(out)); isFullHex(mb) {
 			rng.From = mb
-			if m, err := r.Commit(mb); err == nil {
+			if m, err := r.CommitCtx(ctx, mb); err == nil {
 				rng.MergeBase = &m.CommitInfo
 			}
 		}

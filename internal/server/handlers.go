@@ -270,7 +270,7 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, http.StatusNotFound, "not found", "A commit URL looks like /commit/{hash}.")
 		return
 	}
-	meta, err := s.repo.Commit(rev)
+	meta, err := s.repo.CommitCtx(r.Context(), rev)
 	if err != nil {
 		s.errorPage(w, r, http.StatusNotFound, "commit not found", "No commit named "+rev+" in this repository.")
 		return

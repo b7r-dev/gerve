@@ -469,11 +469,17 @@ func (w *capWriter) Write(p []byte) (int, error) {
 // same reason.
 const noLazyFetchKey = "GIT_NO_LAZY_FETCH"
 
+// gitWaitDelay bounds how long a killed or cancelled git process may keep its
+// output pipes open. On Windows a child process can inherit those handles;
+// without the bound, Wait blocks even though the process we started is gone.
+const gitWaitDelay = 5 * time.Second
+
 func (r *Repo) runGitTo(ctx context.Context, args []string, extraEnv []string, stdin []byte, stdout io.Writer) error {
 	full := append([]string{"-c", "core.quotePath=false", "-c", "color.ui=never"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = r.root
 	cmd.Env = withNoLazyFetch(append(os.Environ(), extraEnv...))
+	cmd.WaitDelay = gitWaitDelay
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

@@ -16,7 +16,7 @@ import (
 // decide whether the parser and the overlay split are right:
 //
 //	committed.txt   tracked, later modified in the worktree without committing
-//	weird:name.txt  a path containing a colon, which is an ordinary filename
+//	weird:name.txt  a path containing a colon, where the host filesystem allows it
 //	tricky.txt      a line whose text looks like "42:something"
 //	sub/spaced.txt  a path containing a space
 //	bin.dat         binary, must never appear
@@ -32,7 +32,9 @@ func searchFixture(t *testing.T) (*Repo, string) {
 	run("config", "user.name", "Test")
 
 	writeFile(t, dir, "committed.txt", "committed-needle here\nsecond line\n")
-	writeFile(t, dir, "weird:name.txt", "colon-needle here\n")
+	if supportsUnusualFilenames() {
+		writeFile(t, dir, "weird:name.txt", "colon-needle here\n")
+	}
 	writeFile(t, dir, "tricky.txt", "42:needle-shaped text\nneedle here\n")
 	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
 		t.Fatal(err)
@@ -149,11 +151,15 @@ func TestSearchParsesHostilePathsAndText(t *testing.T) {
 	r, _ := searchFixture(t)
 
 	res := search(t, r, "colon-needle", "")
-	if res.Count != 1 || res.Groups[0].Path != "weird:name.txt" {
-		t.Errorf("a path containing a colon was misparsed: %+v", res.Groups)
-	}
-	if got := res.Groups[0].Matches[0].Line; got != 1 {
-		t.Errorf("line = %d, want 1", got)
+	if supportsUnusualFilenames() {
+		if res.Count != 1 || res.Groups[0].Path != "weird:name.txt" {
+			t.Errorf("a path containing a colon was misparsed: %+v", res.Groups)
+		}
+		if got := res.Groups[0].Matches[0].Line; got != 1 {
+			t.Errorf("line = %d, want 1", got)
+		}
+	} else if res.Count != 0 {
+		t.Errorf("a colon path was found on a filesystem that cannot hold one: %+v", res.Groups)
 	}
 
 	res = search(t, r, "needle-shaped", "")
@@ -376,6 +382,9 @@ func TestGrepReaderSkipsAnOverlongField(t *testing.T) {
 // containing a newline used to be read as two ordinary records — one of them a
 // phantom file, linking to a page that does not exist.
 func TestSearchSurvivesAPathWithANewline(t *testing.T) {
+	if !supportsUnusualFilenames() {
+		t.Skip("Windows does not allow newlines in filenames")
+	}
 	dir := t.TempDir()
 	run := func(args ...string) { gitOut(t, dir, args...) }
 	run("init", "-q", "-b", "main")

@@ -272,6 +272,7 @@ func (r *Repo) grepAttempt(ctx context.Context, args []string, prefix string, fn
 	// means the zero-egress guard is not inherited. It applies it here for the
 	// same reason: a search in a partial clone must fail, not fetch.
 	cmd.Env = withNoLazyFetch(append(os.Environ(), extraEnv...))
+	cmd.WaitDelay = gitWaitDelay
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, err
@@ -327,6 +328,7 @@ func (r *Repo) grepAttempt(ctx context.Context, args []string, prefix string, fn
 	// deadlock — a full pipe and a process waiting to be read.
 	if reachedLimit || (readErr != nil && !errors.Is(readErr, io.EOF)) {
 		_ = cmd.Process.Kill()
+		_ = stdout.Close() // unblock a writer still holding the pipe open
 	}
 	waitErr := cmd.Wait()
 

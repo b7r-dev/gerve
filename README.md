@@ -1,6 +1,9 @@
 # gerve
 
-A single-binary, read-only web UI for local git repositories.
+**A local Git repository viewer.**
+
+A single-binary, read-only web UI for browsing local Git repositories:
+files, commits, diffs, blame, history, search, and working-tree changes.
 
 `gerve -p 8080 .` starts a localhost HTTP server that renders the repository
 you're standing in — file tree, blobs with syntax highlighting, commit log,
@@ -10,6 +13,19 @@ leaving your machine.
 Built for repositories that aren't (or can't be) pushed to a hosted forge:
 private solo work, client code under NDA, air-gapped environments, giant
 internal monorepos, old archives, and throwaway experiments.
+
+## Why gerve?
+
+`git instaweb` can browse a local repository, but brings gitweb and a web
+server along for the ride. cgit and GitList are designed to be deployed.
+Full forges such as Gitea solve a much larger problem.
+
+gerve is for one repository already on your machine:
+
+    cd some-repo
+    gerve .
+
+Nothing is imported, uploaded, indexed remotely, or written back to the repo.
 
 ## Status
 

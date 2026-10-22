@@ -24,6 +24,7 @@ import (
 	"github.com/b7r-dev/gerve/internal/server"
 )
 
+// version is set at link time by GoReleaser. Local builds report "dev".
 var version = "dev"
 
 const usage = `gerve — a read-only web UI for local git repositories

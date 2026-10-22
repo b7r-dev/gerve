@@ -30,12 +30,12 @@ const usage = `gerve — a read-only web UI for local git repositories
 
 usage: gerve [flags] [path]
 
-  -p <port>    listen port (default 8080; 0 = OS-assigned)
-  -a <addr>    bind address (default 127.0.0.1)
-  -b <ref>     ref to open at (default HEAD)
-  --open       open the browser on start
-  -V           print version
-  -h           show this help
+  -p, --port <port>  listen port (default 8080; 0 = OS-assigned)
+  -a, --addr <addr>  bind address (default 127.0.0.1)
+  -b, --ref <ref>    ref to open at (default HEAD)
+      --open         open the browser on start
+  -V, --version      print version
+  -h, --help         show this help
 
 Flags may appear before or after the path: 'gerve . -p 8080' works too.
 `
@@ -243,9 +243,12 @@ func bareNote(r *git.Repo) string {
 
 func openBrowser(u string) {
 	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		cmd = exec.Command("open", u)
-	} else {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
+	default:
 		cmd = exec.Command("xdg-open", u)
 	}
 	cmd.Run() // best effort

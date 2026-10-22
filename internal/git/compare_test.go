@@ -456,11 +456,8 @@ func TestGitLimitStopsAtTheCap(t *testing.T) {
 // than building a fixture with millions of paths.
 func TestCompareReportsAListingOverTheCap(t *testing.T) {
 	r, base, head := compareFixture(t)
-	old := compareStatBytes
-	compareStatBytes = 16 // smaller than any real record
-	t.Cleanup(func() { compareStatBytes = old })
 
-	rng, err := r.Compare(t.Context(), base, head, "")
+	rng, err := r.compare(t.Context(), base, head, "", 16) // smaller than any real record
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +468,7 @@ func TestCompareReportsAListingOverTheCap(t *testing.T) {
 		t.Errorf("files = %d, want none: a partial listing must not be shown", len(rng.Files))
 	}
 	// The rest of the answer is still there: the cap only stops the listing.
-	if rng.MergeBase == nil || len(rng.Commits) == 0 {
-		t.Errorf("the range lost its commits or merge base: %+v", rng)
+	if rng.From == "" || len(rng.Commits) == 0 {
+		t.Errorf("the range lost its commits or diff base: %+v", rng)
 	}
 }

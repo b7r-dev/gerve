@@ -296,7 +296,9 @@ func TestComparePageSaysWhichLimitItHit(t *testing.T) {
 		want string
 	}{
 		{"over the listing cap", ComparePage{Base: b, TooLarge: true}, "more changes than gerve will list"},
-		{"listing incomplete", ComparePage{Base: b, FilesIncomplete: true}, "could not be read in full"},
+		{"listing incomplete", ComparePage{Base: b, FilesIncomplete: true, FilesTotal: 3}, "could not be read in full"},
+		{"incomplete count", ComparePage{Base: b, FilesIncomplete: true, FilesTotal: 3}, "at least 3 files changed"},
+		{"unreadable count", ComparePage{Base: b, FilesIncomplete: true}, "file list unreadable"},
 		{"chunk unreadable", ComparePage{Base: b, Failed: true}, "could not be read from this repository"},
 		{"partial clone", ComparePage{Base: b, Unavailable: true}, "never fetches missing objects"},
 		{"deadline", ComparePage{Base: b, Stopped: true}, "did not finish"},

@@ -39,7 +39,8 @@
   </div>
   <div class="meta-line">
     {{if .TooLarge}}<span class="strong">too many files to list</span>
-    {{else}}<span class="strong">{{.FilesTotal}} file{{if ne .FilesTotal 1}}s{{end}} changed</span>
+    {{else if and .FilesIncomplete (eq .FilesTotal 0)}}<span class="strong">file list unreadable</span>
+    {{else}}<span class="strong">{{if .FilesIncomplete}}at least {{end}}{{.FilesTotal}} file{{if ne .FilesTotal 1}}s{{end}} changed</span>
     <span class="add">+{{.Adds}}</span>
     <span class="del">&minus;{{.Dels}}</span>{{end}}
     <span class="viewsel">
@@ -56,7 +57,7 @@
   {{if .Failed}}<div class="banner banner-deleted">some patches could not be read from this repository &mdash; the rest of the page is complete</div>{{end}}
   {{if .TooLarge}}<div class="banner">this range has more changes than gerve will list &mdash; narrow it with a path scope</div>{{end}}
   {{if .FilesIncomplete}}<div class="banner banner-deleted">the file list could not be read in full &mdash; changes may be missing from this page</div>{{end}}
-  {{if .FilesMore}}<div class="banner">showing the first {{len .Files}} of {{.FilesTotal}} files &mdash; narrow it with a path scope</div>{{end}}
+  {{if .FilesMore}}<div class="banner">showing the first {{len .Files}} of {{if .FilesIncomplete}}at least {{end}}{{.FilesTotal}} files &mdash; narrow it with a path scope</div>{{end}}
 </div>
 
 {{if .Commits}}

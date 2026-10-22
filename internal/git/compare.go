@@ -20,14 +20,13 @@ const (
 	CompareFileCap     = 1 << 20 // bytes of patch text for one file
 	compareChunkBytes  = 4 << 20 // stdout cap for one `git diff` chunk
 	compareChunk       = 50      // paths per `git diff` invocation
+	// compareStatBytes caps a stat listing's stdout. A listing is one short
+	// record per path, so a range big enough to blow this cannot be shown
+	// anyway — and without the cap the whole listing is buffered before
+	// CompareMaxFiles applies, which makes the page's memory bounded by the
+	// repository rather than by a constant.
+	compareStatBytes = 8 << 20
 )
-
-// compareStatBytes caps a stat listing's stdout. A listing is one short record
-// per path, so a range big enough to blow this cannot be shown anyway — and
-// without the cap the whole listing is buffered before CompareMaxFiles applies,
-// which makes the page's memory bounded by the repository rather than by a
-// constant. It is a var so a test can lower it instead of building that range.
-var compareStatBytes = 8 << 20
 
 // RangeFile is one file's change between two commits.
 type RangeFile struct {
@@ -73,6 +72,13 @@ var ErrObjectsUnavailable = errors.New("objects are not available locally")
 // to one path. It never renders a patch — that is RangePatch, once the caller
 // knows which files survived the caps.
 func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*Range, error) {
+	return r.compare(ctx, baseHash, headHash, scope, compareStatBytes)
+}
+
+// compare is Compare with an explicit listing cap. The cap is a parameter, not
+// package state, so a test can lower it without changing what every other test
+// (or a running server) sees.
+func (r *Repo) compare(ctx context.Context, baseHash, headHash, scope string, statBytes int) (*Range, error) {
 	rng := &Range{From: baseHash}
 	if b, err := r.CommitCtx(ctx, baseHash); err == nil {
 		rng.Base = b.CommitInfo
@@ -149,7 +155,7 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		}
 		return args
 	}
-	nsOut, err := r.gitLimit(ctx, noLazyFetch(), compareStatBytes, statArgs("--name-status")...)
+	nsOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--name-status")...)
 	if errors.Is(err, errOutputTooLarge) {
 		// No file list is better than a list that pretends to be the whole
 		// range: the page says the range is too large and offers a scope.
@@ -163,7 +169,7 @@ func (r *Repo) Compare(ctx context.Context, baseHash, headHash, scope string) (*
 		}
 		return nil, r.statErr(err)
 	}
-	numOut, err := r.gitLimit(ctx, noLazyFetch(), compareStatBytes, statArgs("--numstat")...)
+	numOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--numstat")...)
 	if errors.Is(err, errOutputTooLarge) {
 		rng.TooLarge = true
 		return rng, nil

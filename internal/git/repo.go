@@ -381,9 +381,15 @@ func (r *Repo) gitStdin(ctx context.Context, stdin []byte, args ...string) ([]by
 	return r.gitCall(ctx, stdin, nil, args...)
 }
 
+// isDubiousOwnership reports the one git failure that a second invocation with
+// an override config can fix: a repository owned by another uid.
+func isDubiousOwnership(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership")
+}
+
 func (r *Repo) gitCall(ctx context.Context, stdin []byte, extraEnv []string, args ...string) ([]byte, error) {
 	out, err := r.runGit(ctx, args, extraEnv, stdin)
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership") {
+	if isDubiousOwnership(err) {
 		// Repo owned by another uid: retry with an override config. A
 		// safe.directory set via -c is not trusted by git; GIT_CONFIG_GLOBAL is.
 		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
@@ -430,7 +436,7 @@ func (r *Repo) gitLimit(ctx context.Context, extraEnv []string, limit int, args 
 	if w.overflow {
 		return nil, errOutputTooLarge
 	}
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "dubious ownership") {
+	if isDubiousOwnership(err) {
 		w = &capWriter{limit: limit}
 		env := append(append([]string{}, extraEnv...), safeDirEnv()...)
 		err = r.runGitTo(ctx, args, env, nil, w)
@@ -462,11 +468,18 @@ func (w *capWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
+// noLazyFetchKey is the variable that stops git from reaching for a promisor
+// remote. It is set on every invocation, not just the diff-family calls: a page
+// that reads a tree or a blob in a partial clone would otherwise fetch it, and
+// gerve promises zero egress. Values passed in extraEnv are replaced for the
+// same reason.
+const noLazyFetchKey = "GIT_NO_LAZY_FETCH"
+
 func (r *Repo) runGitTo(ctx context.Context, args []string, extraEnv []string, stdin []byte, stdout io.Writer) error {
 	full := append([]string{"-c", "core.quotePath=false", "-c", "color.ui=never"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = r.root
-	cmd.Env = append(os.Environ(), extraEnv...)
+	cmd.Env = withNoLazyFetch(append(os.Environ(), extraEnv...))
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
@@ -476,6 +489,20 @@ func (r *Repo) runGitTo(ctx context.Context, args []string, extraEnv []string, s
 		return &gitError{cmd: args[0], msg: strings.TrimSpace(errb.String()), err: err}
 	}
 	return nil
+}
+
+// withNoLazyFetch replaces any inherited value of the variable with a refusal.
+// Inheriting "0" would let a read fetch, and the zero-egress promise does not
+// depend on the caller's shell.
+func withNoLazyFetch(env []string) []string {
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, noLazyFetchKey+"=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, noLazyFetchKey+"=1")
 }
 
 func safeDirEnv() []string {

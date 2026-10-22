@@ -70,7 +70,7 @@ CGO_ENABLED=0 go build -trimpath -o gerve ./cmd/gerve
 
 ## Requirements
 
-- Go 1.26 or newer to build.
+- Go 1.26.1 or newer to build.
 - `git` to read repositories.
 - git 2.46 or newer for zero egress. gerve sets `GIT_NO_LAZY_FETCH` on every
   git call; older git ignores it, so a partial clone could fetch missing
@@ -114,7 +114,9 @@ Windows, and checks formatting on Linux.
 
 ### Snapshot release
 
-Exercise the full GoReleaser configuration locally without publishing anything:
+Exercise the full GoReleaser configuration locally without publishing anything.
+You need GoReleaser v2 installed (`brew install goreleaser`, or see the
+[installation docs](https://goreleaser.com/install/)):
 
 ```sh
 goreleaser release --snapshot --clean

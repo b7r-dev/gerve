@@ -163,7 +163,7 @@ func (r *Repo) compare(ctx context.Context, baseHash, headHash, scope string, st
 		}
 		return args
 	}
-	nsOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--name-status")...)
+	nsOut, err := r.gitLimit(ctx, statBytes, statArgs("--name-status")...)
 	if errors.Is(err, errOutputTooLarge) {
 		// No file list is better than a list that pretends to be the whole
 		// range: the page says the range is too large and offers a scope.
@@ -177,7 +177,7 @@ func (r *Repo) compare(ctx context.Context, baseHash, headHash, scope string, st
 		}
 		return nil, r.statErr(err)
 	}
-	numOut, err := r.gitLimit(ctx, noLazyFetch(), statBytes, statArgs("--numstat")...)
+	numOut, err := r.gitLimit(ctx, statBytes, statArgs("--numstat")...)
 	if errors.Is(err, errOutputTooLarge) {
 		rng.TooLarge = true
 		return rng, nil
@@ -332,7 +332,7 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 		if limit > compareChunkBytes {
 			limit = compareChunkBytes
 		}
-		out, err := r.gitLimit(ctx, noLazyFetch(), limit, args...)
+		out, err := r.gitLimit(ctx, limit, args...)
 		if err != nil {
 			if ctx.Err() != nil {
 				res.Stopped = true
@@ -362,14 +362,6 @@ func (r *Repo) RangePatch(ctx context.Context, from, head string, files []RangeF
 	}
 	return res
 }
-
-// noLazyFetch names the zero-egress guard on a command that would otherwise
-// read file contents: runGitTo sets it for every invocation, and saying it here
-// keeps the "this command must not fetch" intent beside the command that would.
-// The value is deliberately redundant: the enforcement point is runGitTo, and
-// the named argument is what stops a later narrowing of that default from
-// silently re-enabling a fetch at a call site that must not.
-func noLazyFetch() []string { return []string{"GIT_NO_LAZY_FETCH=1"} }
 
 // --- parsing ----------------------------------------------------------------
 

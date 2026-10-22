@@ -442,10 +442,10 @@ func TestGitLimitStopsAtTheCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.gitLimit(t.Context(), nil, 8, "log", "--format=%H"); !errors.Is(err, errOutputTooLarge) {
+	if _, err := r.gitLimit(t.Context(), 8, "log", "--format=%H"); !errors.Is(err, errOutputTooLarge) {
 		t.Fatalf("err = %v, want errOutputTooLarge", err)
 	}
-	out, err := r.gitLimit(t.Context(), nil, 1<<20, "log", "--format=%H")
+	out, err := r.gitLimit(t.Context(), 1<<20, "log", "--format=%H")
 	if err != nil || len(out) == 0 {
 		t.Fatalf("under the cap: %d bytes, %v", len(out), err)
 	}

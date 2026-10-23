@@ -37,16 +37,41 @@ if(t==="light"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme
     <a href="/commits/{{urlPathEscape .Ref}}">commits</a>
     {{end}}
     <a href="/refs">refs</a>
+    {{if .Share.Enabled}}
+    <button id="shareBtn" type="button" aria-haspopup="dialog" aria-controls="shareDialog" title="share this page" hidden>share</button>
+    {{end}}
     <button id="themeBtn" type="button" title="toggle theme" aria-label="toggle theme">◐</button>
   </nav>
 </header>
 <main>
 {{block "content" .}}{{end}}
 </main>
+{{if .Share.Enabled}}
+<dialog id="shareDialog" class="share" data-public-url="{{.Share.PublicURL}}" aria-labelledby="shareTitle">
+  <div class="share-head">
+    <h2 id="shareTitle">share this page</h2>
+    <button type="button" id="shareClose" class="share-close" aria-label="close">×</button>
+  </div>
+  <p class="share-warning">Anyone who can reach these addresses can read this repository. There is no authentication.</p>
+  <div class="share-field">
+    <label for="sharePublicURL">public URL</label>
+    <input id="sharePublicURL" type="url" inputmode="url" placeholder="http://host:8080" value="{{.Share.PublicURL}}" spellcheck="false" autocomplete="off">
+    <p class="share-hint">Saved in this browser. Leave empty to use the detected addresses.</p>
+  </div>
+  <ul id="shareList" class="share-list"></ul>
+  <p id="shareEmpty" class="share-empty" hidden>No reachable addresses are available.</p>
+  <div id="shareQR" class="share-qr-panel" hidden>
+    <div id="shareQRCode" class="share-qr-code"></div>
+    <p id="shareQRLabel" class="share-qr-label"></p>
+  </div>
+  <div id="shareOrigins" hidden>{{range .Share.Origins}}<span data-origin="{{.}}"></span>{{end}}</div>
+</dialog>
+{{end}}
 <footer>
   <div class="dot-rule" aria-hidden="true">· · · · ·</div>
   gerve {{.Version}} · read-only view of {{.RepoName}}
 </footer>
+{{if .Share.Enabled}}<script src="{{asset "qrcode.js"}}"></script>{{end}}
 <script src="{{asset "app.js"}}"></script>
 </body>
 </html>{{end}}

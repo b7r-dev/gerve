@@ -15,12 +15,22 @@ import (
 	"github.com/b7r-dev/gerve/web"
 )
 
+// ShareOptions describes how a running server can be reached from another
+// device. It is immutable for the process lifetime.
+type ShareOptions struct {
+	Enabled   bool
+	PublicURL string
+	Origins   []string
+}
+
 // Options configures a Server.
 type Options struct {
 	// DefaultRef is the ref to open at when the URL omits one (default HEAD).
 	DefaultRef string
 	// Version is shown in the footer and -V.
 	Version string
+	// Share enables the LAN/QR share affordance.
+	Share ShareOptions
 }
 
 // Server is the fully constructed application. It holds no per-request state.
@@ -29,6 +39,7 @@ type Server struct {
 	rnd    *render.Renderer
 	def    string
 	ver    string
+	share  ShareOptions
 	mux    *http.ServeMux
 	static http.Handler
 }
@@ -36,10 +47,11 @@ type Server struct {
 // New builds the server and its routes.
 func New(repo *git.Repo, rnd *render.Renderer, opts Options) *Server {
 	s := &Server{
-		repo: repo,
-		rnd:  rnd,
-		def:  opts.DefaultRef,
-		ver:  opts.Version,
+		repo:  repo,
+		rnd:   rnd,
+		def:   opts.DefaultRef,
+		ver:   opts.Version,
+		share: opts.Share,
 	}
 	if s.def == "" {
 		s.def = "HEAD"
@@ -136,6 +148,11 @@ func (s *Server) newBase(ref, path, route string) render.Base {
 		Refs:     refs,
 		Route:    route,
 		Path:     path,
+		Share: render.Share{
+			Enabled:   s.share.Enabled,
+			PublicURL: s.share.PublicURL,
+			Origins:   s.share.Origins,
+		},
 		// The header's search box starts scoped to what you are looking at, so
 		// searching from a directory searches that directory; one click clears
 		// it. The results page overrides this with the scope it just searched.

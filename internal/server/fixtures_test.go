@@ -57,6 +57,11 @@ func writeWorktreeFile(t *testing.T, dir, name, body string) {
 // is closed when the test ends.
 func newTestServer(t *testing.T, dir string) (*httptest.Server, *render.Renderer) {
 	t.Helper()
+	return newTestServerWithOptions(t, dir, Options{Version: "test"})
+}
+
+func newTestServerWithOptions(t *testing.T, dir string, opts Options) (*httptest.Server, *render.Renderer) {
+	t.Helper()
 	repo, err := git.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +70,7 @@ func newTestServer(t *testing.T, dir string) (*httptest.Server, *render.Renderer
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(New(repo, rnd, Options{Version: "test"}).Handler())
+	ts := httptest.NewServer(New(repo, rnd, opts).Handler())
 	t.Cleanup(ts.Close)
 	return ts, rnd
 }

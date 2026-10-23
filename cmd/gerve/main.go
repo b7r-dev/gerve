@@ -31,23 +31,25 @@ const usage = `gerve — a read-only web UI for local git repositories
 
 usage: gerve [flags] [path]
 
-  -p, --port <port>  listen port (default 8080; 0 = OS-assigned)
-  -a, --addr <addr>  bind address (default 127.0.0.1)
-  -b, --ref <ref>    ref to open at (default HEAD)
-      --open         open the browser on start
-  -V, --version      print version
-  -h, --help         show this help
+  -p, --port <port>     listen port (default 8080; 0 = OS-assigned)
+  -a, --addr <addr>     bind address (default 127.0.0.1)
+  -b, --ref <ref>       ref to open at (default HEAD)
+      --open            open the browser on start
+      --share-url <url> public URL for LAN/QR sharing
+  -V, --version         print version
+  -h, --help            show this help
 
 Flags may appear before or after the path: 'gerve . -p 8080' works too.
 `
 
 type cliOpts struct {
-	port    int
-	addr    string
-	ref     string
-	path    string
-	open    bool
-	version bool
+	port     int
+	addr     string
+	ref      string
+	path     string
+	shareURL string
+	open     bool
+	version  bool
 }
 
 func main() {
@@ -83,11 +85,6 @@ func main() {
 		fatal(err)
 	}
 
-	srv := server.New(repo, rnd, server.Options{
-		DefaultRef: opts.ref,
-		Version:    version,
-	})
-
 	addr := net.JoinHostPort(opts.addr, strconv.Itoa(opts.port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -99,12 +96,46 @@ func main() {
 	}
 
 	local := displayURL(ln, opts.addr)
+	_, actualPort, _ := net.SplitHostPort(ln.Addr().String())
+	port, _ := strconv.Atoi(actualPort)
+	shareURL, err := normalizeShareURL(opts.shareURL, port)
+	if err != nil {
+		ln.Close()
+		fmt.Fprintf(os.Stderr, "gerve: invalid --share-url: %v\n", err)
+		os.Exit(2)
+	}
+
+	var origins []string
+	var lan []string
+	if isAnyBind(opts.addr) {
+		lan = lanURLs(ln)
+		origins = shareOrigins(shareURL, lan)
+	} else if shareURL != "" {
+		origins = []string{shareURL}
+	}
+	share := server.ShareOptions{
+		Enabled:   len(origins) > 0,
+		PublicURL: shareURL,
+		Origins:   origins,
+	}
+	srv := server.New(repo, rnd, server.Options{
+		DefaultRef: opts.ref,
+		Version:    version,
+		Share:      share,
+	})
+
 	fmt.Printf("gerve %s · %s%s at %s\n", version, repo.Name(), bareNote(repo), local)
 	if isAnyBind(opts.addr) {
-		for _, u := range lanURLs(ln) {
+		for _, u := range lan {
 			fmt.Printf("%*s also on %s\n", len("gerve "+version+" · "), "", u)
 		}
 		fmt.Println("note: reachable from your network — anyone who can reach this machine can read this repository")
+	}
+	if shareURL != "" {
+		fmt.Printf("%*s share  %s\n", len("gerve "+version+" · "), "", shareURL)
+		if !isAnyBind(opts.addr) {
+			fmt.Println("note: share URL is set while bound to loopback — a proxy must forward to gerve")
+		}
 	}
 	if opts.open {
 		go openBrowser(local)
@@ -154,6 +185,12 @@ func parseArgs(args []string) (cliOpts, error) {
 			o.ref = args[i]
 		case "--open":
 			o.open = true
+		case "--share-url":
+			i++
+			if i >= len(args) {
+				return o, fmt.Errorf("--share-url needs a URL")
+			}
+			o.shareURL = args[i]
 		case "-V", "--version":
 			o.version = true
 		case "-h", "--help":
@@ -188,8 +225,28 @@ func isAnyBind(bind string) bool {
 	return bind == "" || bind == "0.0.0.0" || bind == "::" || bind == "[::]"
 }
 
+// shareOrigins returns the public URL followed by reachable LAN URLs, with
+// duplicates removed. A public URL and a LAN address can name the same origin.
+func shareOrigins(public string, lan []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(lan)+1)
+	add := func(u string) {
+		if u == "" || seen[u] {
+			return
+		}
+		seen[u] = true
+		out = append(out, u)
+	}
+	add(public)
+	for _, u := range lan {
+		add(u)
+	}
+	return out
+}
+
 // lanURLs returns http URLs for every non-loopback, non-link-local address
-// of this machine, so the user knows what to type on another device.
+// of this machine, so the user knows what to type on another device. IPv4
+// comes first because a phone is more likely to reach it when both exist.
 func lanURLs(ln net.Listener) []string {
 	_, port, err := net.SplitHostPort(ln.Addr().String())
 	if err != nil {
@@ -200,19 +257,25 @@ func lanURLs(ln net.Listener) []string {
 		return nil
 	}
 	seen := map[string]bool{}
-	var urls []string
+	var v4, v6 []string
 	add := func(ip net.IP) {
 		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
 			return
 		}
 		host := ip.String()
-		if ip4 := ip.To4(); ip4 != nil {
-			host = ip4.String()
+		is4 := ip.To4() != nil
+		if is4 {
+			host = ip.To4().String()
 		}
 		u := "http://" + net.JoinHostPort(host, port)
-		if !seen[u] {
-			seen[u] = true
-			urls = append(urls, u)
+		if seen[u] {
+			return
+		}
+		seen[u] = true
+		if is4 {
+			v4 = append(v4, u)
+		} else {
+			v6 = append(v6, u)
 		}
 	}
 	for _, ifc := range ifaces {
@@ -232,7 +295,7 @@ func lanURLs(ln net.Listener) []string {
 			}
 		}
 	}
-	return urls
+	return append(v4, v6...)
 }
 
 func bareNote(r *git.Repo) string {

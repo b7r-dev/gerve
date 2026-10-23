@@ -22,6 +22,15 @@ type Base struct {
 	Scope  string
 	Query  string // the search box's current value, filled on the results page
 	Crumbs []Crumb
+	Share  Share
+}
+
+// Share is the LAN/QR sharing state for the header dialog. The server decides
+// whether sharing is enabled; the browser never enables it on its own.
+type Share struct {
+	Enabled   bool
+	PublicURL string
+	Origins   []string
 }
 
 // Crumb is one breadcrumb segment.

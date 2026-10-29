@@ -31,7 +31,7 @@ account, a database, or a background service.
 
 ## Status
 
-**v1.0.0 — stable.** The requirements that shaped it are recorded through five
+**v1.0.1 — stable.** The requirements that shaped it are recorded through five
 personas and narratives in [`docs/personas/`](docs/personas/) — start with
 [the overview](docs/personas/00-overview.md) for the settled decisions.
 
@@ -132,8 +132,8 @@ Release tags use semantic versioning and must match `v*`. Push the tag and let
 GitHub Actions do the rest:
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 The release workflow checks out the tag, sets up Go, runs GoReleaser, and

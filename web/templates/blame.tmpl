@@ -5,6 +5,7 @@
   <a href="{{urlFor "blob" .Ref .Path}}">&larr; file view</a>
   <a href="{{urlFor "history" .Ref .Path}}">history</a>
 </div>
+{{if .Groups}}
 <div class="blame plaincode">
   <table>
     <colgroup><col class="cwho"><col class="cln"><col></colgroup>
@@ -13,7 +14,7 @@
     {{$span := len .Lines}}
     {{range $i, $line := .Lines}}
     <tr id="L{{$line.Num}}">
-      {{if eq $i 0}}<td class="bwho" rowspan="{{$span}}" title="{{$g.Commit.Subject}} · {{$g.Commit.Author}}, {{shortdate $g.Commit.Time}}"><span class="bwho-in"><span class="bauthor">{{$g.Commit.Author}}</span><span class="bat">@</span><a href="/commit/{{$g.Commit.Hash}}">{{if $g.Boundary}}<span class="bmark" title="boundary commit">^</span>{{end}}{{short $g.Commit.Hash}}</a></span></td>{{end}}
+      {{with blameRowspan $i $span}}<th class="bwho" scope="rowgroup" rowspan="{{.}}" title="{{$g.Commit.Subject}} · {{$g.Commit.Author}}, {{shortdatetime $g.Commit.Time}}"><span class="bwho-in"><span class="bauthor">{{$g.Commit.Author}}</span><span class="bat">@</span><a href="/commit/{{$g.Commit.Hash}}">{{if $g.Boundary}}<span class="bmark" title="boundary commit">^</span>{{end}}{{short $g.Commit.Hash}}</a></span></th>{{end}}
       <td class="ln">{{$line.Num}}</td>
       <td class="lt">{{$line.Text}}</td>
     </tr>
@@ -21,4 +22,7 @@
     {{end}}
   </table>
 </div>
+{{else}}
+<p class="muted">No lines to blame.</p>
+{{end}}
 {{end}}

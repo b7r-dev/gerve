@@ -107,3 +107,19 @@ func TestBlameAttributionSpansRun(t *testing.T) {
 		t.Errorf("blame rows = %d, want 4 (one per blamed line)", n)
 	}
 }
+
+// TestBlameEmptyFileHasNoWell: a tracked file with no lines has no blame rows,
+// so the page must not draw the code well's border around nothing.
+func TestBlameEmptyFileHasNoWell(t *testing.T) {
+	dir := initTestRepo(t)
+	commitFiles(t, dir, "one", map[string]string{"empty.txt": ""})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, ts.URL+"/blame/HEAD/empty.txt")
+	if strings.Contains(body, `class="blame`) {
+		t.Error("empty blame page rendered a code well")
+	}
+	if !strings.Contains(body, "No lines to blame.") {
+		t.Error("empty blame page missing its message")
+	}
+}

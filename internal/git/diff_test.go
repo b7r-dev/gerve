@@ -278,6 +278,7 @@ func TestParseBlameLabelsEveryRun(t *testing.T) {
 		"author Ada Lovelace",
 		"author-time 1700000000",
 		"summary first",
+		"boundary",
 		"\tone",
 		"2222222222222222222222222222222222222222 2 2 1",
 		"author Grace Hopper",
@@ -300,5 +301,14 @@ func TestParseBlameLabelsEveryRun(t *testing.T) {
 	}
 	if !last.Commit.Time.Equal(time.Unix(1700000000, 0)) {
 		t.Errorf("repeat run time = %v, want %v", last.Commit.Time, time.Unix(1700000000, 0))
+	}
+	if !groups[0].Boundary {
+		t.Error("first run lost its boundary marker")
+	}
+	if groups[1].Boundary {
+		t.Error("non-boundary run marked as boundary")
+	}
+	if !last.Boundary {
+		t.Error("repeat run lost its boundary marker")
 	}
 }

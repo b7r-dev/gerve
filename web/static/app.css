@@ -603,8 +603,9 @@ html.light .chroma .nt { color: var(--pool); }
 .blame col.cln { width: 3.2rem; }
 
 /* The spanning cell is the run's only label. It stays put when the code
-   scrolls sideways, so a long line never hides whose line it is. */
-.blame td.bwho {
+   scrolls sideways, so a long line never hides whose line it is. A header cell
+   keeps its semantics; the resets undo the browser's bold, centred default. */
+.blame .bwho {
   vertical-align: top;
   padding: 0 var(--sp-2) 0 var(--sp-3);
   background: var(--sunken);
@@ -613,6 +614,8 @@ html.light .chroma .nt { color: var(--pool); }
   left: 0;
   z-index: 2;
   overflow: hidden;
+  font-weight: 400;
+  text-align: left;
 }
 .bwho-in {
   display: flex;
@@ -633,11 +636,6 @@ html.light .chroma .nt { color: var(--pool); }
 /* The number gutter rides with the code: only the attribution column is
    pinned, so there is nothing for a scrolled line to paint over. */
 .blame td.ln { position: static; }
-
-/* The run's label is not part of a highlighted line: tinting the spanning
-   cell for one selected row would paint over every line in the run. */
-.plaincode tr:target td.bwho,
-.plaincode tr.line-sel td.bwho { background: var(--sunken); }
 
 .imgview img {
   max-width: 100%;

@@ -32,6 +32,10 @@ import (
 
 const (
 	maxHighlight = 512 << 10 // bytes highlighted; larger falls back to plain
+	// maxBlameSpan is the most rows one blame label may span. Browsers clamp
+	// rowspan at 65534, which would shift every following row; a longer run
+	// repeats its label in the next chunk instead.
+	maxBlameSpan = 60000
 )
 
 // Renderer owns parsed templates and the markdown pipeline.
@@ -51,6 +55,7 @@ func New() (*Renderer, error) {
 		"short":         shortHash,
 		"timeago":       timeago,
 		"shortdate":     func(t time.Time) string { return t.Format("2006-01-02") },
+		"shortdatetime": func(t time.Time) string { return t.Format("2006-01-02 15:04:05 MST") },
 		"sizefmt":       humanBytes,
 		"urlFor":        URLFor,
 		"joinPath":      joinPath,
@@ -59,6 +64,7 @@ func New() (*Renderer, error) {
 		"kindClass":     kindClass,
 		"initial":       initial,
 		"hit":           emphasiseMatch,
+		"blameRowspan":  blameRowspan,
 	}
 
 	hashes, err := hashStatic()
@@ -377,6 +383,20 @@ func shortHash(h string) string {
 		return h[:7]
 	}
 	return h
+}
+
+// blameRowspan reports the rowspan for the label cell at row in a run of total
+// rows: zero except at a chunk boundary, so a run longer than a browser's
+// rowspan limit repeats its label rather than misaligning every row below it.
+func blameRowspan(row, total int) int {
+	if row%maxBlameSpan != 0 {
+		return 0
+	}
+	n := total - row
+	if n > maxBlameSpan {
+		n = maxBlameSpan
+	}
+	return n
 }
 
 func kindClass(k byte) string {

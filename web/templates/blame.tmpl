@@ -5,19 +5,24 @@
   <a href="{{urlFor "blob" .Ref .Path}}">&larr; file view</a>
   <a href="{{urlFor "history" .Ref .Path}}">history</a>
 </div>
-<div class="blame">
-  {{range .Groups}}
-  <div class="bgroup">
-    <div class="bhead">
-      <a href="/commit/{{.Commit.Hash}}">{{short .Commit.Hash}}</a>
-      <span class="strong">{{.Commit.Subject}}</span>
-      <span class="muted">{{.Commit.Author}}, {{timeago .Commit.Time}}</span>
-      {{if .Boundary}}<span class="badge">boundary</span>{{end}}
-    </div>
-    <div class="plaincode"><table>
-      {{range .Lines}}<tr id="L{{.Num}}"><td class="ln">{{.Num}}</td><td class="lt">{{.Text}}</td></tr>{{end}}
-    </table></div>
-  </div>
-  {{end}}
+{{if .Groups}}
+<div class="blame plaincode">
+  <table>
+    <colgroup><col class="cwho"><col class="cln"><col></colgroup>
+    {{range .Groups}}
+    {{$g := .}}
+    {{$span := len .Lines}}
+    {{range $i, $line := .Lines}}
+    <tr id="L{{$line.Num}}">
+      {{with blameRowspan $i $span}}<th class="bwho" scope="rowgroup" rowspan="{{.}}" title="{{$g.Commit.Subject}} · {{$g.Commit.Author}}, {{shortdatetime $g.Commit.Time}}"><span class="bwho-in"><span class="bauthor">{{$g.Commit.Author}}</span><span class="bat">@</span><a href="/commit/{{$g.Commit.Hash}}">{{if $g.Boundary}}<span class="bmark" title="boundary commit">^</span>{{end}}{{short $g.Commit.Hash}}</a></span></th>{{end}}
+      <td class="ln">{{$line.Num}}</td>
+      <td class="lt">{{$line.Text}}</td>
+    </tr>
+    {{end}}
+    {{end}}
+  </table>
 </div>
+{{else}}
+<p class="muted">No lines to blame.</p>
+{{end}}
 {{end}}

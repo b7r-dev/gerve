@@ -335,8 +335,7 @@ func parseBlame(out []byte) []BlameGroup {
 		f := strings.Fields(ln)
 		if len(f) >= 4 && isFullHex(f[0]) {
 			cur = &BlameGroup{
-				Commit:   CommitInfo{Hash: f[0], Short: shortHash(f[0])},
-				Boundary: len(f) >= 5 && f[4] == "boundary",
+				Commit: CommitInfo{Hash: f[0], Short: shortHash(f[0])},
 			}
 			groups = append(groups, cur)
 			continue
@@ -353,10 +352,34 @@ func parseBlame(out []byte) []BlameGroup {
 			}
 		case strings.HasPrefix(ln, "summary "):
 			cur.Commit.Subject = strings.TrimPrefix(ln, "summary ")
+		case ln == "boundary":
+			cur.Boundary = true
 		}
 	}
 	out2 := make([]BlameGroup, 0, len(groups))
+	// --porcelain writes a commit's metadata and its boundary marker only the
+	// first time the commit appears; later runs of the same commit carry just
+	// the hash. Groups are per run, so fill those later runs from the commit's
+	// first appearance — otherwise a commit that owns two non-contiguous runs
+	// loses its label.
+	type label struct {
+		commit   CommitInfo
+		boundary bool
+	}
+	seen := make(map[string]label, len(groups))
 	for _, g := range groups {
+		if _, ok := seen[g.Commit.Hash]; !ok {
+			seen[g.Commit.Hash] = label{commit: g.Commit, boundary: g.Boundary}
+		}
+	}
+	for _, g := range groups {
+		c := seen[g.Commit.Hash]
+		if g.Commit.Author == "" {
+			g.Commit.Author = c.commit.Author
+			g.Commit.Time = c.commit.Time
+			g.Commit.Subject = c.commit.Subject
+		}
+		g.Boundary = g.Boundary || c.boundary
 		out2 = append(out2, *g)
 	}
 	return out2

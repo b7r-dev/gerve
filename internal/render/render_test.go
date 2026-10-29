@@ -314,3 +314,50 @@ func TestComparePageSaysWhichLimitItHit(t *testing.T) {
 		}
 	}
 }
+
+// TestBlameRowspanCapsLongRuns: one label cell may not span past a browser's
+// rowspan limit, so a huge run repeats the label at the next chunk instead of
+// letting the browser clamp it and shift every following row.
+func TestBlameRowspanCapsLongRuns(t *testing.T) {
+	cases := []struct{ row, total, want int }{
+		{0, 1, 1},
+		{0, 3, 3},
+		{1, 3, 0},
+		{0, maxBlameSpan, maxBlameSpan},
+		{0, maxBlameSpan + 1, maxBlameSpan},
+		{maxBlameSpan, maxBlameSpan + 1, 1},
+		{maxBlameSpan + 1, maxBlameSpan + 1, 0},
+	}
+	for _, tc := range cases {
+		if got := blameRowspan(tc.row, tc.total); got != tc.want {
+			t.Errorf("blameRowspan(%d, %d) = %d, want %d", tc.row, tc.total, got, tc.want)
+		}
+	}
+}
+
+// TestBlameLabelIsARowgroupHeader: the attribution cell labels the rows it
+// spans, and its tooltip carries the exact commit time, not just a date.
+func TestBlameLabelIsARowgroupHeader(t *testing.T) {
+	rd, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := commit()
+	c.Time = time.Date(2026, 10, 17, 10, 27, 46, 0, time.UTC)
+	var out bytes.Buffer
+	page := BlamePage{Base: fixtureBase(), Groups: []git.BlameGroup{{
+		Commit: c,
+		Lines:  []git.BlameLine{{Num: 1, Text: "package main"}},
+	}}}
+	if err := rd.pages["blame"].ExecuteTemplate(&out, "layout", page); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<th class="bwho" scope="rowgroup"`,
+		"2026-10-17 10:27:46 UTC",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("blame page missing %q", want)
+		}
+	}
+}

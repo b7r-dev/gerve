@@ -356,7 +356,24 @@ func parseBlame(out []byte) []BlameGroup {
 		}
 	}
 	out2 := make([]BlameGroup, 0, len(groups))
+	// --porcelain writes author, time and summary only the first time a commit
+	// appears; later runs of the same commit carry just the hash. Groups are
+	// per run, so fill those later runs from the commit's first appearance —
+	// otherwise a commit that owns two non-contiguous runs loses its label.
+	seen := make(map[string]CommitInfo, len(groups))
 	for _, g := range groups {
+		if g.Commit.Author != "" {
+			seen[g.Commit.Hash] = g.Commit
+		}
+	}
+	for _, g := range groups {
+		if g.Commit.Author == "" {
+			if c, ok := seen[g.Commit.Hash]; ok {
+				g.Commit.Author = c.Author
+				g.Commit.Time = c.Time
+				g.Commit.Subject = c.Subject
+			}
+		}
 		out2 = append(out2, *g)
 	}
 	return out2

@@ -207,7 +207,7 @@ b, strong { font-weight: 600; }
    arrangement, never in size. Mono *chrome* — section labels, chips, the
    footer, the logo, the ref selector — declares its own font shorthand and so
    never sees this rule. */
-code, pre, .dn, .dc, .ln, .lt, .hash, .hashcode, .bhead, .fhead, .hunk-h {
+code, pre, .dn, .dc, .ln, .lt, .bwho, .hash, .hashcode, .fhead, .hunk-h {
   font-family: var(--font-mono);
   font-size: var(--text-code);
   line-height: 1.5;
@@ -540,9 +540,8 @@ td.hash { white-space: nowrap; }
    without the script there is none to take. */
 .js .plaincode td.ln { cursor: pointer; }
 
-/* A header that labels a code well. Blame groups and diff files wear the same
-   header; they differ only in how they meet the well beneath them. */
-.bhead, .fhead {
+/* A header that labels a code well, as diff files wear. */
+.fhead {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -593,17 +592,52 @@ html.light .chroma .nt { color: var(--pool); }
 
 /* blame ------------------------------------------------------------------------ */
 
-.blame { margin-top: var(--sp-2); }
-.bgroup { margin-bottom: var(--sp-4); }
-.bhead {
-  /* joins the well it labels: no bottom border, and the well's top corners
-     square off to meet it */
-  border: 1px solid var(--border-1);
-  border-bottom: none;
-  border-radius: var(--radius-1) var(--radius-1) 0 0;
+/* Blame is one table down the whole file, not a card per commit. The left
+   column names the commit once for its run and then holds silence, so the eye
+   reads code against an attribution gutter instead of a stack of headers. */
+.blame {
+  --bwho-w: 13rem;
+  margin-top: var(--sp-2);
 }
-.bhead a { color: var(--pool-bright); }
-.bgroup .plaincode { border-radius: 0 0 var(--radius-2) var(--radius-2); }
+.blame col.cwho { width: var(--bwho-w); }
+.blame col.cln { width: 3.2rem; }
+
+/* The spanning cell is the run's only label. It stays put when the code
+   scrolls sideways, so a long line never hides whose line it is. */
+.blame td.bwho {
+  vertical-align: top;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  background: var(--sunken);
+  box-shadow: inset -1px 0 0 var(--border-1);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  overflow: hidden;
+}
+.bwho-in {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+.bwho-in .bauthor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+.bwho-in .bat { flex: none; color: var(--fg-3); }
+.bwho-in a { flex: none; color: var(--pool-bright); }
+.bwho-in .bmark { color: var(--fg-3); }
+
+/* The number gutter rides with the code: only the attribution column is
+   pinned, so there is nothing for a scrolled line to paint over. */
+.blame td.ln { position: static; }
+
+/* The run's label is not part of a highlighted line: tinting the spanning
+   cell for one selected row would paint over every line in the run. */
+.plaincode tr:target td.bwho,
+.plaincode tr.line-sel td.bwho { background: var(--sunken); }
 
 .imgview img {
   max-width: 100%;
@@ -868,7 +902,11 @@ details.card[open] > summary.panel-label { margin-bottom: var(--sp-3); }
 
 @media (max-width: 640px) {
   /* long unbreakable tokens (SHAs, paths, URLs) may wrap anywhere */
-  .md, .commit-body, .meta-line, .crumbs, .bhead { overflow-wrap: anywhere; }
+  .md, .commit-body, .meta-line, .crumbs { overflow-wrap: anywhere; }
+
+  /* blame: the attribution column narrows, but the hash must survive — the
+     author name ellipsizes first. */
+  .blame { --bwho-w: 10rem; }
 
   /* header: the ref selector takes its own full-width line */
   .top { flex-wrap: wrap; row-gap: var(--sp-1); }

@@ -77,3 +77,33 @@ func TestBlameRowsAreAddressable(t *testing.T) {
 		t.Errorf("blame rows = %d, want 3 (one per blamed line)", n)
 	}
 }
+
+// TestBlameAttributionSpansRun: the contributor and hash are spelled once for a
+// contiguous run of lines, not once per line. Two commits touch the file, so
+// there are two labels for its four lines; each label spans its run with
+// rowspan and the code sits in its own column.
+func TestBlameAttributionSpansRun(t *testing.T) {
+	dir := initTestRepo(t)
+	first := commitFiles(t, dir, "one", map[string]string{"file.txt": "a\nb\nc\n"})
+	second := commitFiles(t, dir, "two", map[string]string{"file.txt": "a\nb\nc\nd\n"})
+	ts, _ := newTestServer(t, dir)
+
+	body, _ := getBody(t, ts.URL+"/blame/HEAD/file.txt")
+	if n := strings.Count(body, `class="bwho"`); n != 2 {
+		t.Errorf("attribution cells = %d, want 2 (one per commit run)", n)
+	}
+	for _, hash := range []string{first, second} {
+		if want := `href="/commit/` + hash + `"`; !strings.Contains(body, want) {
+			t.Errorf("blame page missing attribution link %q", want)
+		}
+	}
+	// Four lines, two runs: the first run spans three rows, the second one.
+	for _, want := range []string{`rowspan="3"`, `rowspan="1"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("blame page missing %s", want)
+		}
+	}
+	if n := strings.Count(body, `<tr id="L`); n != 4 {
+		t.Errorf("blame rows = %d, want 4 (one per blamed line)", n)
+	}
+}
